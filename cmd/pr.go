@@ -18,13 +18,12 @@ import (
 var ErrLostPCreationRaceCondition error = errors.New("lost race condition when creating PR")
 var ErrLostPrCreationRaceConditionMultipleTimes error = errors.New("lost race condition when creating PR too many times, aborting")
 
-func PrCommand() *cobra.Command {
+func PrCommand(repo *core.Repo) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "pr",
 		Aliases: []string{"pull-request", "new"},
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var repo = core.Current()
 			var headCommit plumbing.Hash
 			if len(args) == 0 {
 				var head = core.Must(repo.Head())

@@ -7,13 +7,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func PushCommand() *cobra.Command {
+func PushCommand(repo *core.Repo``) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "push",
 		Aliases: []string{"up", "p"},
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var repo = core.Current()
 			repo.Fetch(cmd.Context())
 			branch, err := repo.CurrentBranch()
 			if err != nil {

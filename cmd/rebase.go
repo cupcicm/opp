@@ -10,14 +10,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func RebaseCommand() *cobra.Command {
+func RebaseCommand(repo *core.Repo) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rebase",
 		Aliases: []string{"reb", "rebase"},
 		Short:   "rebase the current branch and dependent PRs if needed.",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var repo = core.Current()
 			pr, headIsAPr := repo.PrForHead()
 			if !headIsAPr {
 				fmt.Println("You can run rebase only on local pr branches")
