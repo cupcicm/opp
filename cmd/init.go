@@ -12,10 +12,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-func InitCommand() *cobra.Command {
+func InitCommand(repo *core.Repo) *cobra.Command {
 	return &cobra.Command{
 		Run: func(cmd *cobra.Command, args []string) {
-			config := core.Current().Config()
+			config := repo.Config()
 			if _, err := os.Stat(config); err == nil {
 				panic("Config file already exists")
 			}
@@ -42,7 +42,7 @@ func InitCommand() *cobra.Command {
 			}
 			viper.Set("github.login", user.Login)
 
-			remoteName, githubRepo := extractGithubRepo(core.Current())
+			remoteName, githubRepo := extractGithubRepo(repo)
 			viper.Set("repo.github", githubRepo)
 			viper.Set("repo.remote", remoteName)
 

@@ -14,7 +14,8 @@ func CommandContext() context.Context {
 }
 
 func main() {
-	viper.AddConfigPath(core.Current().DotOpDir())
+	repo := core.Current()
+	viper.AddConfigPath(repo.DotOpDir())
 	viper.AddConfigPath("$HOME/.config/opp")
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -23,13 +24,13 @@ func main() {
 		Use: "opp",
 	}
 	ctx := CommandContext()
-	root.AddCommand(cmd.InitCommand())
-	root.AddCommand(cmd.PrCommand())
-	root.AddCommand(cmd.RebaseCommand())
-	root.AddCommand(cmd.PushCommand())
+	root.AddCommand(cmd.InitCommand(repo))
+	root.AddCommand(cmd.PrCommand(repo))
+	root.AddCommand(cmd.RebaseCommand(repo))
+	root.AddCommand(cmd.PushCommand(repo))
 
-	if !core.Current().OppEnabled() {
-		cmd.InitCommand().ExecuteContext(ctx)
+	if !repo.OppEnabled() {
+		cmd.InitCommand(repo).ExecuteContext(ctx)
 		return
 	}
 
