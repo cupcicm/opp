@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cupcicm/opp/git"
+	"github.com/cupcicm/opp/core"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -15,7 +15,7 @@ import (
 func InitCommand() *cobra.Command {
 	return &cobra.Command{
 		Run: func(cmd *cobra.Command, args []string) {
-			config := git.Current().Config()
+			config := core.Current().Config()
 			if _, err := os.Stat(config); err == nil {
 				panic("Config file already exists")
 			}
@@ -26,15 +26,15 @@ func InitCommand() *cobra.Command {
 				fmt.Println("Please enter a personal github token.")
 				fmt.Println("You can create one at https://github.com/settings/tokens.")
 				fmt.Print("Your github token: ")
-				token := strings.TrimSpace(git.Must(reader.ReadString('\n')))
+				token := strings.TrimSpace(core.Must(reader.ReadString('\n')))
 				viper.Set("github.token", token)
 			}
 
 			fmt.Println()
 			fmt.Println("What is the name of the base branch for your PRs in this repository z? ")
-			base := strings.TrimSpace(git.Must(reader.ReadString('\n')))
+			base := strings.TrimSpace(core.Must(reader.ReadString('\n')))
 			viper.Set("repo.branch", base)
-			client := git.NewClient(cmd.Context())
+			client := core.NewClient(cmd.Context())
 
 			user, _, err := client.Users.Get(cmd.Context(), "")
 			if err != nil {
@@ -42,7 +42,7 @@ func InitCommand() *cobra.Command {
 			}
 			viper.Set("github.login", user.Login)
 
-			remoteName, githubRepo := extractGithubRepo(git.Current())
+			remoteName, githubRepo := extractGithubRepo(core.Current())
 			viper.Set("repo.github", githubRepo)
 			viper.Set("repo.remote", remoteName)
 
@@ -53,11 +53,11 @@ func InitCommand() *cobra.Command {
 	}
 }
 
-func extractGithubRepo(r *git.Repo) (string, string) {
+func extractGithubRepo(r *core.Repo) (string, string) {
 	found := false
 	var result string
 	var remoteName string
-	for _, remote := range git.Must(r.Remotes()) {
+	for _, remote := range core.Must(r.Remotes()) {
 		urls := remote.Config().URLs
 		if len(urls) == 0 {
 			continue

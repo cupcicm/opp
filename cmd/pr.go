@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cupcicm/opp/git"
+	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -24,10 +24,10 @@ func PrCommand() *cobra.Command {
 		Aliases: []string{"pull-request", "new"},
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var repo = git.Current()
+			var repo = core.Current()
 			var headCommit plumbing.Hash
 			if len(args) == 0 {
-				var head = git.Must(repo.Head())
+				var head = core.Must(repo.Head())
 				if !head.Name().IsBranch() {
 					return errors.New("works only when on a branch")
 				}
@@ -43,14 +43,14 @@ func PrCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			tip := git.Must(repo.GetLocalTip(ancestor))
+			tip := core.Must(repo.GetLocalTip(ancestor))
 			if ancestor.IsPr() && tip.Hash == headCommit {
 				fmt.Println("You are on a branch that has already been pushed as a PR")
 				fmt.Println("Use opp up to update that PR instead.")
 				//return nil
 			}
 			// Create a new PR then.
-			pr := createPr{Repo: repo, Github: git.NewClient(cmd.Context())}
+			pr := createPr{Repo: repo, Github: core.NewClient(cmd.Context())}
 			return pr.Create(cmd.Context(), headCommit, commits, ancestor)
 		},
 	}
@@ -59,15 +59,15 @@ func PrCommand() *cobra.Command {
 }
 
 type createPr struct {
-	Repo   *git.Repo
+	Repo   *core.Repo
 	Github *github.Client
 }
 
 func RemoteBranch(branch string) string {
-	return fmt.Sprintf("%s/%s", git.GetGithubUsername(), branch)
+	return fmt.Sprintf("%s/%s", core.GetGithubUsername(), branch)
 }
 
-func (c *createPr) Create(ctx context.Context, hash plumbing.Hash, commits []*object.Commit, ancestor git.Branch) error {
+func (c *createPr) Create(ctx context.Context, hash plumbing.Hash, commits []*object.Commit, ancestor core.Branch) error {
 
 	title, body := c.GetBodyAndTitle(commits)
 
@@ -76,10 +76,10 @@ func (c *createPr) Create(ctx context.Context, hash plumbing.Hash, commits []*ob
 		return err
 	}
 	c.createLocalBranchForPr(*pr.Number, hash, ancestor)
-	localPr := git.NewLocalPr(c.Repo, *pr.Number)
+	localPr := core.NewLocalPr(c.Repo, *pr.Number)
 	localPr.SetAncestor(ancestor)
 	c.Repo.SetTrackingBranch(localPr, ancestor)
-	fmt.Printf("https://github.com/%s/pull/%d\n", git.GetGithubRepo(), *pr.Number)
+	fmt.Printf("https://github.com/%s/pull/%d\n", core.GetGithubRepo(), *pr.Number)
 	return err
 }
 
@@ -91,19 +91,19 @@ func (c *createPr) GetBodyAndTitle(commits []*object.Commit) (string, string) {
 	return strings.TrimSpace(title), strings.TrimSpace(body)
 }
 
-func (c *createPr) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor git.Branch) {
+func (c *createPr) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor core.Branch) {
 	c.Repo.CreateBranch(&config.Branch{
-		Name:   git.LocalBranchForPr(number),
-		Remote: git.RemoteBranchForPr(number),
+		Name:   core.LocalBranchForPr(number),
+		Remote: core.RemoteBranchForPr(number),
 		Merge:  plumbing.NewBranchReferenceName(ancestor.RemoteName()),
 		Rebase: "true",
 	})
 
-	ref := plumbing.NewBranchReferenceName(git.LocalBranchForPr(number))
+	ref := plumbing.NewBranchReferenceName(core.LocalBranchForPr(number))
 	c.Repo.Storer.SetReference(plumbing.NewHashReference(ref, hash))
 }
 
-func (c *createPr) create(ctx context.Context, hash plumbing.Hash, ancestor git.Branch, title string, body string) (*github.PullRequest, error) {
+func (c *createPr) create(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string) (*github.PullRequest, error) {
 	for attempts := 0; attempts < 3; attempts++ {
 		pr, err := c.createOnce(ctx, hash, ancestor, title, body)
 		if err == nil {
@@ -116,12 +116,12 @@ func (c *createPr) create(ctx context.Context, hash plumbing.Hash, ancestor git.
 	return nil, ErrLostPrCreationRaceConditionMultipleTimes
 }
 
-func (c *createPr) createOnce(ctx context.Context, hash plumbing.Hash, ancestor git.Branch, title string, body string) (*github.PullRequest, error) {
+func (c *createPr) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string) (*github.PullRequest, error) {
 	lastPr, err := c.getLastPrNumber(ctx)
 	if err != nil {
 		return nil, err
 	}
-	remote := git.RemoteBranchForPr(lastPr + 1)
+	remote := core.RemoteBranchForPr(lastPr + 1)
 	base := ancestor.RemoteName()
 	err = c.Repo.Push(ctx, hash, remote)
 	if err != nil {
@@ -135,8 +135,8 @@ func (c *createPr) createOnce(ctx context.Context, hash plumbing.Hash, ancestor 
 	}
 	pr, _, err := c.Github.PullRequests.Create(
 		ctx,
-		git.GetGithubUsername(),
-		git.GetGithubRepoName(),
+		core.GetGithubUsername(),
+		core.GetGithubRepoName(),
 		&pull,
 	)
 	if err != nil {
@@ -151,8 +151,8 @@ func (c *createPr) createOnce(ctx context.Context, hash plumbing.Hash, ancestor 
 func (c *createPr) getLastPrNumber(ctx context.Context) (int, error) {
 	pr, _, err := c.Github.PullRequests.List(
 		ctx,
-		git.GetGithubOwner(),
-		git.GetGithubRepoName(),
+		core.GetGithubOwner(),
+		core.GetGithubRepoName(),
 		&github.PullRequestListOptions{
 			State:     "all",
 			Sort:      "created",

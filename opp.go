@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/cupcicm/opp/cmd"
-	"github.com/cupcicm/opp/git"
+	"github.com/cupcicm/opp/core"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -14,7 +14,7 @@ func CommandContext() context.Context {
 }
 
 func main() {
-	viper.AddConfigPath(git.Current().DotOpDir())
+	viper.AddConfigPath(core.Current().DotOpDir())
 	viper.AddConfigPath("$HOME/.config/opp")
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -28,7 +28,7 @@ func main() {
 	root.AddCommand(cmd.RebaseCommand())
 	root.AddCommand(cmd.PushCommand())
 
-	if !git.Current().OppEnabled() {
+	if !core.Current().OppEnabled() {
 		cmd.InitCommand().ExecuteContext(ctx)
 		return
 	}

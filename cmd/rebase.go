@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cupcicm/opp/git"
+	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/spf13/cobra"
 )
@@ -17,7 +17,7 @@ func RebaseCommand() *cobra.Command {
 		Short:   "rebase the current branch and dependent PRs if needed.",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var repo = git.Current()
+			var repo = core.Current()
 			pr, headIsAPr := repo.PrForHead()
 			if !headIsAPr {
 				fmt.Println("You can run rebase only on local pr branches")
@@ -37,14 +37,14 @@ func RebaseCommand() *cobra.Command {
 	return cmd
 }
 
-func rebase(ctx context.Context, repo *git.Repo, pr *git.LocalPr, first bool) (git.Branch, error) {
+func rebase(ctx context.Context, repo *core.Repo, pr *core.LocalPr, first bool) (core.Branch, error) {
 	ancestor, err := pr.GetAncestor()
-	var baseBranch git.Branch = ancestor
+	var baseBranch core.Branch = ancestor
 	if err != nil {
 		return nil, err
 	}
 	if ancestor.IsPr() {
-		baseBranch, err = rebase(ctx, repo, ancestor.(*git.LocalPr), false)
+		baseBranch, err = rebase(ctx, repo, ancestor.(*core.LocalPr), false)
 		if err != nil {
 			return nil, err
 		}
@@ -67,9 +67,9 @@ func rebase(ctx context.Context, repo *git.Repo, pr *git.LocalPr, first bool) (g
 		return nil, fmt.Errorf("error during rebase: %w", err)
 	}
 	if !ancestor.IsPr() {
-		remoteBaseBranchTip := git.Must(repo.GetRemoteTip(ancestor))
-		localPrTip := git.Must(repo.GetLocalTip(pr))
-		if git.Must(localPrTip.IsAncestor(remoteBaseBranchTip)) {
+		remoteBaseBranchTip := core.Must(repo.GetRemoteTip(ancestor))
+		localPrTip := core.Must(repo.GetLocalTip(pr))
+		if core.Must(localPrTip.IsAncestor(remoteBaseBranchTip)) {
 			// PR has been merged : the local branch is now part
 			// of the history of the main branch.
 			repo.CleanupAfterMerge(pr)
