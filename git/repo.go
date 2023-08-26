@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 
 	"github.com/go-git/go-git/v5"
@@ -21,16 +20,18 @@ type Repo struct {
 
 func Current() *Repo {
 	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
+		// Walk back the directories to find the .git folder.
 		DetectDotGit:          true,
 		EnableDotGitCommonDir: false,
 	})
 	if err != nil {
-		panic(err)
+		panic("You are not inside a git repository")
 	}
 	return &Repo{
 		Repository: repo,
 	}
 }
+
 func (r *Repo) OppEnabled() bool {
 	return FileExists(r.Config())
 }
@@ -47,12 +48,12 @@ func (r *Repo) Path() string {
 	return r.Worktree().Filesystem.Root()
 }
 
-func (r *Repo) Config() string {
-	return path.Join(r.DotOpDir(), "config.yaml")
-}
-
 func (r *Repo) DotOpDir() string {
 	return path.Join(r.Path(), ".opp")
+}
+
+func (r *Repo) Config() string {
+	return path.Join(r.DotOpDir(), "config.yaml")
 }
 
 func branchpush(hash plumbing.Hash, branch string) []config.RefSpec {
@@ -73,7 +74,7 @@ func (r *Repo) Push(ctx context.Context, hash plumbing.Hash, branch string) erro
 	return err
 }
 
-func (r *Repo) TrackedBranches() (map[int]plumbing.Hash, error) {
+func (r *Repo) AllLocalPrs() (map[int]plumbing.Hash, error) {
 	iter, err := r.Repository.Branches()
 	if err != nil {
 		return nil, fmt.Errorf("could not iter branches: %w", err)
@@ -130,6 +131,28 @@ func (r *Repo) GetCommitsNotInBaseBranch(hash plumbing.Hash) ([]*object.Commit, 
 	return commits, nil
 }
 
+func (r *Repo) FindBranchingPoint(headCommit plumbing.Hash) (Branch, []*object.Commit, error) {
+	commits, err := r.GetCommitsNotInBaseBranch(headCommit)
+	branchedCommits := make([]*object.Commit, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	tracked, err := r.AllLocalPrs()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, commit := range commits {
+		branchedCommits = append(branchedCommits, commit)
+		for number, tip := range tracked {
+			if commit.Hash == tip {
+				return NewLocalPr(r, number), branchedCommits, nil
+			}
+		}
+	}
+	return r.BaseBranch(), commits, nil
+}
+
 func (r *Repo) PrForHead() (*LocalPr, bool) {
 	head := Must(r.Repository.Head())
 	branchName := head.Name().Short()
@@ -145,7 +168,7 @@ func (r *Repo) BaseBranch() Branch {
 }
 
 func (r *Repo) Checkout(pr *LocalPr) error {
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("git checkout %s", pr.LocalBranch()))
+	cmd := GitExec("checkout %s", pr.LocalBranch())
 	cmd.Stderr = nil
 	cmd.Stdout = nil
 	cmd.Stdin = os.Stdin
@@ -164,16 +187,27 @@ func (r *Repo) Fetch(ctx context.Context) error {
 }
 
 func (r *Repo) Rebase(ctx context.Context, branch Branch) error {
-	cmd := exec.Command(
-		"bash", "-c",
-		fmt.Sprintf("git rebase %s/%s", GetRemoteName(), branch.RemoteName()),
-	)
+	cmd := GitExec("rebase %s/%s", GetRemoteName(), branch.RemoteName())
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
 
+func (r *Repo) SetTrackingBranch(localBranch Branch, remoteBranch Branch) error {
+	cmd := GitExec(
+		"branch -u %s/%s %s",
+		GetRemoteName(),
+		remoteBranch.RemoteName(),
+		localBranch.LocalName())
+	cmd.Stderr = nil
+	cmd.Stdout = nil
+	cmd.Stdin = nil
+	return cmd.Run()
+}
+
+// CanRebase returns true when all files are either
+// unmodified or untracked.
 func (r *Repo) CanRebase() bool {
 	for _, status := range Must(r.Worktree().Status()) {
 		if !(status.Worktree == git.Unmodified || status.Worktree == git.Untracked) || !(status.Staging == git.Unmodified || status.Staging == git.Untracked) {
@@ -215,24 +249,10 @@ func (r *Repo) GetRemoteTip(b Branch) (*object.Commit, error) {
 	return r.CommitObject(ref.Hash())
 }
 
-// Sometimes your ancestor has been merged.
-func (r *Repo) GetFirstValidAncestor(pr *LocalPr) (Branch, error) {
-	ancestor, err := pr.GetAncestor()
-	if err != nil {
-		return nil, err
-	}
-	if !ancestor.IsPr() {
-		// Main branches don't disappear
-		return ancestor, nil
-	}
-	_, err = r.GetLocalTip(ancestor)
-	if err == plumbing.ErrReferenceNotFound {
-		// This branch has been deleted.
-		ancestor, err = r.GetFirstValidAncestor(ancestor.(*LocalPr))
-		if err != nil {
-			return nil, err
-		}
-		pr.SetAncestor(ancestor)
-	}
-	return ancestor, nil
+func (r *Repo) CleanupAfterMerge(pr *LocalPr) {
+	r.DeleteBranch(pr.LocalBranch())
+	r.Storer.RemoveReference(plumbing.NewBranchReferenceName(pr.LocalBranch()))
+	pr.DeleteState()
+	// TODO: Need to go through all local PRs and update their state:
+	// they depend on the main branch now.
 }
