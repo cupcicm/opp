@@ -24,6 +24,9 @@ func main() {
 	}
 	ctx := CommandContext()
 	root.AddCommand(cmd.InitCommand())
+	root.AddCommand(cmd.PrCommand())
+	root.AddCommand(cmd.RebaseCommand())
+	root.AddCommand(cmd.PushCommand())
 
 	if !git.Current().OppEnabled() {
 		cmd.InitCommand().ExecuteContext(ctx)
