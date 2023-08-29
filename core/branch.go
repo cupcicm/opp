@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-git/go-git/v5/plumbing"
 	"gopkg.in/yaml.v3"
 )
 
@@ -126,19 +125,7 @@ func (b *LocalPr) GetAncestor() (Branch, error) {
 	if errNotAPr != nil {
 		return NewBranch(b.Repo, b.state.Ancestor.Name), nil
 	}
-	pr := NewLocalPr(b.Repo, number)
-	_, err := b.Repo.GetLocalTip(pr)
-	if err == plumbing.ErrReferenceNotFound {
-		// This PR has been merged / deleted locally.
-		ancestor, err := pr.GetAncestor()
-		if err != nil {
-			return nil, err
-		}
-		b.SetAncestor(ancestor)
-		b.Repo.CleanupAfterMerge(pr)
-		return ancestor, nil
-	}
-	return pr, nil
+	return NewLocalPr(b.Repo, number), nil
 }
 
 func (b *LocalPr) SetAncestor(branch Branch) {
@@ -185,4 +172,24 @@ func ExtractPrNumber(branchname string) (int, error) {
 		return 0, ErrNotAPrBranch
 	}
 	return number, nil
+}
+
+type PrStates struct {
+	Repo *Repo
+}
+
+func (s PrStates) StatesPath() string {
+	return path.Join(s.Repo.DotOpDir(), "state", "pr")
+}
+
+func (s PrStates) AllPrs() []LocalPr {
+	files := Must(os.ReadDir(s.StatesPath()))
+	prs := make([]LocalPr, 0, len(files))
+	for _, file := range files {
+		num, err := strconv.Atoi(file.Name())
+		if err == nil {
+			prs = append(prs, *NewLocalPr(s.Repo, num))
+		}
+	}
+	return prs
 }

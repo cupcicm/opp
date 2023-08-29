@@ -57,6 +57,10 @@ func (r *Repo) Config() string {
 	return path.Join(r.DotOpDir(), "config.yaml")
 }
 
+func (r *Repo) AllPrs() []LocalPr {
+	return PrStates{r}.AllPrs()
+}
+
 func branchpush(hash plumbing.Hash, branch string) []config.RefSpec {
 	return []config.RefSpec{
 		config.RefSpec(fmt.Sprintf("%s:refs/heads/%s", hash.String(), branch)),
@@ -256,10 +260,24 @@ func (r *Repo) GetRemoteTip(b Branch) (*object.Commit, error) {
 	return r.CommitObject(ref.Hash())
 }
 
-func (r *Repo) CleanupAfterMerge(pr *LocalPr) {
-	r.DeleteBranch(pr.LocalBranch())
-	r.Storer.RemoveReference(plumbing.NewBranchReferenceName(pr.LocalBranch()))
+func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
+	for _, possibleDependentPR := range r.AllPrs() {
+		ancestor, _ := possibleDependentPR.GetAncestor()
+		if ancestor.LocalName() == pr.LocalName() {
+			// This is a PR that depends on the PR we are currently cleaning.
+			// Make it point to the master branch
+			possibleDependentPR.SetAncestor(r.BaseBranch())
+		}
+	}
+	r.DeleteLocalAndRemoteBranch(ctx, pr)
 	pr.DeleteState()
-	// TODO: Need to go through all local PRs and update their state:
-	// they depend on the main branch now.
+}
+
+func (r *Repo) DeleteLocalAndRemoteBranch(ctx context.Context, branch Branch) {
+	r.Repository.DeleteBranch(branch.LocalName())
+	r.Storer.RemoveReference(plumbing.NewBranchReferenceName(branch.LocalName()))
+	r.Repository.PushContext(ctx, &git.PushOptions{
+		RemoteName: GetRemoteName(),
+		RefSpecs:   []config.RefSpec{config.RefSpec(":" + branch.RemoteName())},
+	})
 }
