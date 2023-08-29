@@ -59,6 +59,7 @@ func (b *LocalPr) loadState() {
 	}
 	b.HasState = true
 }
+
 func loadState(file string) (*state, error) {
 	content, err := os.ReadFile(file)
 	if err != nil {
@@ -115,6 +116,10 @@ func (b *branch) LocalName() string {
 
 func (b *branch) RemoteName() string {
 	return b.Name
+}
+
+func (b *LocalPr) Url() string {
+	return fmt.Sprintf("https://github.com/%s/pull/%d", GetGithubRepo(), b.PrNumber)
 }
 
 func (b *LocalPr) GetAncestor() (Branch, error) {
