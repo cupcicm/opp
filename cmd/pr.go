@@ -18,7 +18,7 @@ import (
 var ErrLostPCreationRaceCondition error = errors.New("lost race condition when creating PR")
 var ErrLostPrCreationRaceConditionMultipleTimes error = errors.New("lost race condition when creating PR too many times, aborting")
 
-func PrCommand(repo *core.Repo) *cobra.Command {
+func PrCommand(repo *core.Repo, gh core.GhPullRequest) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "pr",
 		Aliases: []string{"pull-request", "new"},
@@ -49,7 +49,7 @@ func PrCommand(repo *core.Repo) *cobra.Command {
 				//return nil
 			}
 			// Create a new PR then.
-			pr := createPr{Repo: repo, Github: core.NewClient(cmd.Context())}
+			pr := createPr{Repo: repo, PullRequests: gh}
 			return pr.Create(cmd.Context(), headCommit, commits, ancestor)
 		},
 	}
@@ -58,8 +58,8 @@ func PrCommand(repo *core.Repo) *cobra.Command {
 }
 
 type createPr struct {
-	Repo   *core.Repo
-	Github *github.Client
+	Repo         *core.Repo
+	PullRequests core.GhPullRequest
 }
 
 func RemoteBranch(branch string) string {
@@ -132,7 +132,7 @@ func (c *createPr) createOnce(ctx context.Context, hash plumbing.Hash, ancestor 
 		Base:  &base,
 		Body:  &body,
 	}
-	pr, _, err := c.Github.PullRequests.Create(
+	pr, _, err := c.PullRequests.Create(
 		ctx,
 		core.GetGithubUsername(),
 		core.GetGithubRepoName(),
@@ -148,7 +148,7 @@ func (c *createPr) createOnce(ctx context.Context, hash plumbing.Hash, ancestor 
 }
 
 func (c *createPr) getLastPrNumber(ctx context.Context) (int, error) {
-	pr, _, err := c.Github.PullRequests.List(
+	pr, _, err := c.PullRequests.List(
 		ctx,
 		core.GetGithubOwner(),
 		core.GetGithubRepoName(),

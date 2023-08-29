@@ -25,7 +25,7 @@ func main() {
 	}
 	ctx := CommandContext()
 	root.AddCommand(cmd.InitCommand(repo))
-	root.AddCommand(cmd.PrCommand(repo))
+	root.AddCommand(cmd.PrCommand(repo, core.NewClient(ctx).PullRequests()))
 	root.AddCommand(cmd.RebaseCommand(repo))
 	root.AddCommand(cmd.PushCommand(repo))
 
