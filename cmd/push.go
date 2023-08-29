@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func PushCommand(repo *core.Repo``) *cobra.Command {
+func PushCommand(repo *core.Repo) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "push",
 		Aliases: []string{"up", "p"},
