@@ -78,7 +78,7 @@ func (c *createPr) Create(ctx context.Context, hash plumbing.Hash, commits []*ob
 	localPr := core.NewLocalPr(c.Repo, *pr.Number)
 	localPr.SetAncestor(ancestor)
 	c.Repo.SetTrackingBranch(localPr, ancestor)
-	fmt.Printf("https://github.com/%s/pull/%d\n", core.GetGithubRepo(), *pr.Number)
+	fmt.Println(localPr.Url())
 	return err
 }
 
