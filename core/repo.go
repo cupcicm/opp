@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 
 	"github.com/go-git/go-git/v5"
@@ -168,11 +169,17 @@ func (r *Repo) BaseBranch() Branch {
 }
 
 func (r *Repo) Checkout(pr *LocalPr) error {
-	cmd := GitExec("checkout %s", pr.LocalBranch())
+	cmd := r.GitExec("checkout %s", pr.LocalBranch())
 	cmd.Stderr = nil
 	cmd.Stdout = nil
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
+}
+
+func (r *Repo) GitExec(format string, args ...any) *exec.Cmd {
+	cmd := exec.Command("bash", "-c", "git "+fmt.Sprintf(format, args...))
+	cmd.Dir = r.Path()
+	return cmd
 }
 
 func (r *Repo) Fetch(ctx context.Context) error {
@@ -187,7 +194,7 @@ func (r *Repo) Fetch(ctx context.Context) error {
 }
 
 func (r *Repo) Rebase(ctx context.Context, branch Branch) error {
-	cmd := GitExec("rebase %s/%s", GetRemoteName(), branch.RemoteName())
+	cmd := r.GitExec("rebase %s/%s", GetRemoteName(), branch.RemoteName())
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
@@ -195,7 +202,7 @@ func (r *Repo) Rebase(ctx context.Context, branch Branch) error {
 }
 
 func (r *Repo) SetTrackingBranch(localBranch Branch, remoteBranch Branch) error {
-	cmd := GitExec(
+	cmd := r.GitExec(
 		"branch -u %s/%s %s",
 		GetRemoteName(),
 		remoteBranch.RemoteName(),
