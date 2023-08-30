@@ -78,10 +78,10 @@ func (r *TestRepo) PrepareSource() {
 	if err != nil {
 		panic(err)
 	}
-	wt.Add("2")
-	wt.Commit("2", &git.CommitOptions{})
-	wt.Add("3")
-	wt.Commit("3", &git.CommitOptions{})
+	for i := 0; i < 5; i++ {
+		wt.Add(strconv.Itoa(i))
+		wt.Commit(strconv.Itoa(i), &git.CommitOptions{})
+	}
 }
 
 func (r *TestRepo) AssertHasPr(t *testing.T, n int) *core.LocalPr {
