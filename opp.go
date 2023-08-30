@@ -21,7 +21,8 @@ func main() {
 	viper.SetConfigType("yaml")
 	viper.ReadInConfig()
 	root := cobra.Command{
-		Use: "opp",
+		Use:          "opp",
+		SilenceUsage: true,
 	}
 	ctx := CommandContext()
 	root.AddCommand(cmd.InitCommand(repo))
