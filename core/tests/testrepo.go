@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"testing"
 
 	"github.com/cupcicm/opp/cmd"
@@ -118,6 +119,16 @@ func (m *GithubMock) Create(ctx context.Context, owner string, repo string, pull
 	return args.Get(0).(*github.PullRequest), nil, args.Error(2)
 }
 
+func (m *GithubMock) Get(ctx context.Context, owner string, repo string, number int) (*github.PullRequest, *github.Response, error) {
+	args := m.Mock.Called(ctx, owner, repo, number)
+	return args.Get(0).(*github.PullRequest), nil, args.Error(2)
+}
+
+func (m *GithubMock) Merge(ctx context.Context, owner string, repo string, number int, commitMessage string, options *github.PullRequestOptions) (*github.PullRequestMergeResult, *github.Response, error) {
+	args := m.Mock.Called(ctx, owner, repo, number, commitMessage, options)
+	return args.Get(0).(*github.PullRequestMergeResult), nil, args.Error(2)
+}
+
 func (m *GithubMock) CallListAndReturnPr(prNumber int) {
 	pr := github.PullRequest{
 		Number: &prNumber,
@@ -132,6 +143,18 @@ func (m *GithubMock) CallCreate(prNumber int) {
 		Number: &prNumber,
 	}
 	m.On("Create", mock.Anything, "cupcicm", "opp", mock.Anything).Return(
+		&pr, nil, nil,
+	).Once()
+}
+
+func (m *GithubMock) CallGetAndReturnMergeable(prNumber int, mergeable bool) {
+	reason := "dirty"
+	pr := github.PullRequest{
+		Number:         &prNumber,
+		Mergeable:      &mergeable,
+		MergeableState: &reason,
+	}
+	m.On("Get", mock.Anything, "cupcicm", "opp", prNumber).Return(
 		&pr, nil, nil,
 	).Once()
 }
