@@ -10,6 +10,8 @@ import (
 type GhPullRequest interface {
 	List(ctx context.Context, owner string, repo string, opt *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error)
 	Create(ctx context.Context, owner string, repo string, pull *github.NewPullRequest) (*github.PullRequest, *github.Response, error)
+	Get(ctx context.Context, owner string, repo string, number int) (*github.PullRequest, *github.Response, error)
+	Merge(ctx context.Context, owner string, repo string, number int, commitMessage string, options *github.PullRequestOptions) (*github.PullRequestMergeResult, *github.Response, error)
 }
 
 type GithubClient struct {
