@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -136,6 +137,26 @@ func (b *LocalPr) GetAncestor() (Branch, error) {
 func (b *LocalPr) SetAncestor(branch Branch) {
 	b.state.Ancestor.Name = branch.LocalName()
 	b.saveState()
+}
+
+// Returns all ancestor but not itself.
+func (b *LocalPr) AllAncestors() []*LocalPr {
+	all := b.allAncestors(make([]*LocalPr, 0))[1:]
+	slices.Reverse(all)
+	return all
+}
+
+func (b *LocalPr) allAncestors(descendents []*LocalPr) []*LocalPr {
+	descendents = append(descendents, b)
+	ancestor, err := b.GetAncestor()
+	if err != nil {
+		return descendents
+	}
+	ancestorPr, ok := ancestor.(*LocalPr)
+	if !ok {
+		return descendents
+	}
+	return ancestorPr.allAncestors(descendents)
 }
 
 func (b *LocalPr) LocalBranch() string {
