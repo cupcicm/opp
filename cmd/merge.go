@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/cupcicm/opp/core"
 	"github.com/google/go-github/github"
@@ -17,69 +18,53 @@ type merger struct {
 }
 
 func MergeCommand(repo *core.Repo, gh core.GhPullRequest) *cobra.Command {
-	mergeDeps := false
 	cmd := &cobra.Command{
 		Use:     "merge",
 		Aliases: []string{"m"},
-		Args:    cobra.MaximumNArgs(0),
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var head = core.Must(repo.Head())
-			pr, found := repo.PrForHead()
-			if !head.Name().IsBranch() || !found {
-				return errors.New("you need to be on a PR branch to run opp merge")
+			var pr *core.LocalPr
+			var mergingCurrentBranch bool
+			if len(args) == 0 {
+				// Merge the PR that is the current branch
+				pr, mergingCurrentBranch = repo.PrForHead()
+				if !mergingCurrentBranch {
+					return errors.New("please run opp merge pr/XXX to merge a specific branch")
+				}
+			} else {
+				prNumber, err := strconv.Atoi(args[0])
+				if err == nil {
+					pr = core.NewLocalPr(repo, prNumber)
+				} else {
+					prNumber, err := core.ExtractPrNumber(args[0])
+					if err != nil {
+						return fmt.Errorf("%s is not a PR", args[0])
+					}
+					pr = core.NewLocalPr(repo, prNumber)
+				}
 			}
 			merger := merger{Repo: repo, PullRequests: gh}
 			ancestors := pr.AllAncestors()
-			mergeable, reason := merger.IsMergeable(cmd.Context(), pr, ancestors)
-			if !mergeable {
-				return reason
+			if len(ancestors) >= 1 {
+				fmt.Printf("%s is not mergeable because it has unmerged dependent PRs.", pr.Url())
+				return fmt.Errorf("please merge %s first", ancestors[0].LocalBranch())
 			}
-			if len(ancestors) >= 1 && !mergeDeps {
-				return errors.New("use --deps to merge dependent PRs before merging this one")
+			isMergeable, err := merger.IsMergeable(cmd.Context(), pr)
+			if !isMergeable {
+				return err
 			}
-			merger.Merge(cmd.Context(), ancestors...)
 			merger.Merge(cmd.Context(), pr)
-
-			// merge !
+			if mergingCurrentBranch {
+				repo.Checkout(repo.BaseBranch())
+			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&mergeDeps, "deps", false, "Pass true to merge dependent PRs if needed")
 	return cmd
 }
 
-// If IsMergeable returns true, err will be nil but if false err will
-// be non-nil.
-func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr, ancestors []*core.LocalPr) (bool, error) {
-
-	overallMergeable, err := m.isMergeable(ctx, pr)
-	if !overallMergeable {
-		return false, fmt.Errorf("%s is not mergeable (❌ - %s)", pr.Url(), err)
-	}
-	if len(ancestors) > 0 {
-		fmt.Printf("%s is mergeable (✅). It depends on \n", pr.Url())
-		for _, pr := range ancestors {
-			mergeable, err := m.isMergeable(ctx, pr)
-			var details string
-			if mergeable {
-				details = "(✅)"
-			} else {
-				details = fmt.Sprintf("(❌ - %s)", err)
-				overallMergeable = false
-			}
-			fmt.Printf("  - %s %s\n", pr.Url(), details)
-		}
-	} else {
-		fmt.Printf("%s is mergeable (✅).\n", pr.Url())
-	}
-	if !overallMergeable {
-		return false, errors.New("some dependent PRs are unmergeable")
-	}
-	return true, nil
-}
-
 // Is this PR, separately from its ancestor, mergeable in itself ?
-func (m *merger) isMergeable(ctx context.Context, pr *core.LocalPr) (bool, error) {
+func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr) (bool, error) {
 	githubPr, _, err := m.PullRequests.Get(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
 	if err != nil {
 		return false, err
