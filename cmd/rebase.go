@@ -25,7 +25,7 @@ func RebaseCommand(repo *core.Repo) *cobra.Command {
 			if err := repo.Fetch(cmd.Context()); err != nil {
 				return fmt.Errorf("error during fetch: %w", err)
 			}
-			if !repo.CanRebase() {
+			if !repo.NoLocalChanges() {
 				return errors.New("there are uncommitted changes. Cannot run rebase")
 			}
 			_, err := rebase(cmd.Context(), repo, pr, true)
