@@ -217,9 +217,9 @@ func (r *Repo) SetTrackingBranch(localBranch Branch, remoteBranch Branch) error 
 	return cmd.Run()
 }
 
-// CanRebase returns true when all files are either
+// NoLocalChanges returns true when all files are either
 // unmodified or untracked.
-func (r *Repo) CanRebase() bool {
+func (r *Repo) NoLocalChanges() bool {
 	for _, status := range Must(r.Worktree().Status()) {
 		if !(status.Worktree == git.Unmodified || status.Worktree == git.Untracked) || !(status.Staging == git.Unmodified || status.Staging == git.Untracked) {
 			return false
