@@ -39,3 +39,11 @@ func GetRemoteName() string {
 func GetBaseBranch() string {
 	return viper.GetString("repo.branch")
 }
+
+func GetGithubMergeMethod() string {
+	method := viper.GetString("github.merge.method")
+	if method == "" {
+		method = "rebase"
+	}
+	return method
+}
