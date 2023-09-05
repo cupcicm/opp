@@ -134,7 +134,7 @@ func (c *createPr) createOnce(ctx context.Context, hash plumbing.Hash, ancestor 
 	}
 	pr, _, err := c.PullRequests.Create(
 		ctx,
-		core.GetGithubUsername(),
+		core.GetGithubOwner(),
 		core.GetGithubRepoName(),
 		&pull,
 	)
