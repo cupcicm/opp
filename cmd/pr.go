@@ -86,7 +86,7 @@ func (c *createPr) GetBodyAndTitle(commits []*object.Commit) (string, string) {
 	sort.Slice(commits, func(i, j int) bool {
 		return len(commits[i].Message) > len(commits[j].Message)
 	})
-	title, body, _ := strings.Cut(commits[0].Message, "\n")
+	title, body, _ := strings.Cut(strings.TrimSpace(commits[0].Message), "\n")
 	return strings.TrimSpace(title), strings.TrimSpace(body)
 }
 

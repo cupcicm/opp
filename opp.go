@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 
 	"github.com/cupcicm/opp/cmd"
 	"github.com/cupcicm/opp/core"
@@ -27,6 +28,8 @@ func main() {
 	ctx := CommandContext()
 	root.AddCommand(cmd.InitCommand(repo))
 	root.AddCommand(cmd.PrCommand(repo, core.NewClient(ctx).PullRequests()))
+	root.AddCommand(cmd.MergeCommand(repo, core.NewClient(ctx).PullRequests()))
+	root.AddCommand(cmd.StatusCommand(os.Stdout, repo, core.NewClient(ctx).PullRequests()))
 	root.AddCommand(cmd.RebaseCommand(repo))
 	root.AddCommand(cmd.PushCommand(repo))
 

@@ -57,8 +57,8 @@ func (r *Repo) Config() string {
 	return path.Join(r.DotOpDir(), "config.yaml")
 }
 
-func (r *Repo) AllPrs() []LocalPr {
-	return PrStates{r}.AllPrs()
+func (r *Repo) AllPrs(ctx context.Context) []LocalPr {
+	return PrStates{r}.AllPrs(ctx)
 }
 
 func branchpush(hash plumbing.Hash, branch string) []config.RefSpec {
@@ -148,12 +148,12 @@ func (r *Repo) FindBranchingPoint(headCommit plumbing.Hash) (Branch, []*object.C
 	}
 
 	for _, commit := range commits {
-		branchedCommits = append(branchedCommits, commit)
 		for number, tip := range tracked {
 			if commit.Hash == tip {
 				return NewLocalPr(r, number), branchedCommits, nil
 			}
 		}
+		branchedCommits = append(branchedCommits, commit)
 	}
 	return r.BaseBranch(), commits, nil
 }
@@ -172,8 +172,8 @@ func (r *Repo) BaseBranch() Branch {
 	return NewBranch(r, GetBaseBranch())
 }
 
-func (r *Repo) Checkout(pr *LocalPr) error {
-	cmd := r.GitExec("checkout %s", pr.LocalBranch())
+func (r *Repo) Checkout(branch Branch) error {
+	cmd := r.GitExec("checkout %s", branch.LocalName())
 	cmd.Stderr = nil
 	cmd.Stdout = nil
 	cmd.Stdin = os.Stdin
@@ -261,17 +261,25 @@ func (r *Repo) GetRemoteTip(b Branch) (*object.Commit, error) {
 }
 
 func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
-	for _, possibleDependentPR := range r.AllPrs() {
+	r.CleanupMultiple(ctx, []*LocalPr{pr}, r.AllPrs(ctx))
+}
+
+func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others []LocalPr) {
+	for _, possibleDependentPR := range others {
 		ancestor, _ := possibleDependentPR.GetAncestor()
-		if ancestor.LocalName() == pr.LocalName() {
-			// This is a PR that depends on the PR we are currently cleaning.
-			// Make it point to the master branch
-			possibleDependentPR.SetAncestor(r.BaseBranch())
-			r.SetTrackingBranch(&possibleDependentPR, r.BaseBranch())
+		for _, deleting := range toclean {
+			if ancestor.LocalName() == deleting.LocalName() {
+				// This is a PR that depends on the PR we are currently cleaning.
+				// Make it point to the master branch
+				possibleDependentPR.SetAncestor(r.BaseBranch())
+				r.SetTrackingBranch(&possibleDependentPR, r.BaseBranch())
+			}
 		}
 	}
-	r.DeleteLocalAndRemoteBranch(ctx, pr)
-	pr.DeleteState()
+	for _, deleting := range toclean {
+		r.DeleteLocalAndRemoteBranch(ctx, deleting)
+		deleting.DeleteState()
+	}
 }
 
 func (r *Repo) DeleteLocalAndRemoteBranch(ctx context.Context, branch Branch) {

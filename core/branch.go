@@ -208,14 +208,25 @@ func (s PrStates) StatesPath() string {
 	return path.Join(s.Repo.DotOpDir(), "state", "pr")
 }
 
-func (s PrStates) AllPrs() []LocalPr {
+func (s PrStates) AllPrs(ctx context.Context) []LocalPr {
 	files := Must(os.ReadDir(s.StatesPath()))
 	prs := make([]LocalPr, 0, len(files))
+	toclean := make([]*LocalPr, 0)
 	for _, file := range files {
 		num, err := strconv.Atoi(file.Name())
-		if err == nil {
-			prs = append(prs, *NewLocalPr(s.Repo, num))
+		if err != nil {
+			continue
+		}
+		pr := NewLocalPr(s.Repo, num)
+		// Check that the branch exists.
+		_, err = s.Repo.GetLocalTip(pr)
+		if err != nil {
+			// This PR does not exist locally: clean it.
+			toclean = append(toclean, pr)
+		} else {
+			prs = append(prs, *pr)
 		}
 	}
+	s.Repo.CleanupMultiple(ctx, toclean, prs)
 	return prs
 }
