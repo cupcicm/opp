@@ -28,9 +28,12 @@ func RebaseCommand(repo *core.Repo) *cobra.Command {
 			if !repo.NoLocalChanges() {
 				return errors.New("there are uncommitted changes. Cannot run rebase")
 			}
-			_, err := rebase(cmd.Context(), repo, pr, true)
-			repo.Checkout(pr)
-			return err
+			branch, err := rebase(cmd.Context(), repo, pr, true)
+			if err != nil {
+				return err
+			}
+			repo.Checkout(branch)
+			return nil
 		},
 	}
 	return cmd
@@ -72,8 +75,8 @@ func rebase(ctx context.Context, repo *core.Repo, pr *core.LocalPr, first bool) 
 			// PR has been merged : the local branch is now part
 			// of the history of the main branch.
 			repo.CleanupAfterMerge(ctx, pr)
+			return baseBranch, nil
 		}
 	}
-
-	return baseBranch, nil
+	return pr, nil
 }
