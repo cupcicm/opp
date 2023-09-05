@@ -71,7 +71,11 @@ func extractGithubRepo(r *core.Repo) (string, string) {
 				panic("two github remotes in this repo.")
 			}
 			found = true
-			result = url[index+len("github.com")+1 : dotGit]
+			if dotGit == -1 {
+				result = url[index+len("github.com")+1:]
+			} else {
+				result = url[index+len("github.com")+1 : dotGit]
+			}
 			remoteName = remote.Config().Name
 		}
 	}
