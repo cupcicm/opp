@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	"github.com/cupcicm/opp/core"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 func InitCommand(repo *core.Repo) *cobra.Command {
 	return &cobra.Command{
+		Use: "init",
 		Run: func(cmd *cobra.Command, args []string) {
 			config := repo.Config()
 			if _, err := os.Stat(config); err == nil {
@@ -30,10 +32,14 @@ func InitCommand(repo *core.Repo) *cobra.Command {
 				viper.Set("github.token", token)
 			}
 
-			fmt.Println()
-			fmt.Println("What is the name of the base branch for your PRs in this repository z? ")
-			base := strings.TrimSpace(core.Must(reader.ReadString('\n')))
-			viper.Set("repo.branch", base)
+			remoteName, githubRepo := extractGithubRepo(repo)
+			viper.Set("repo.github", githubRepo)
+			viper.Set("repo.remote", remoteName)
+
+			githubHead := core.Must(repo.Reference(plumbing.NewRemoteHEADReferenceName(remoteName), false))
+			mainRef := githubHead.Target().Short()
+			mainBranch := mainRef[strings.Index(mainRef, "/"):]
+			viper.Set("repo.branch", mainBranch)
 			client := core.NewClient(cmd.Context())
 
 			user, _, err := client.Users.Get(cmd.Context(), "")
@@ -41,10 +47,6 @@ func InitCommand(repo *core.Repo) *cobra.Command {
 				panic(err)
 			}
 			viper.Set("github.login", user.Login)
-
-			remoteName, githubRepo := extractGithubRepo(repo)
-			viper.Set("repo.github", githubRepo)
-			viper.Set("repo.remote", remoteName)
 
 			if err := viper.SafeWriteConfig(); err != nil {
 				panic(err)
