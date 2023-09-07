@@ -190,6 +190,39 @@ func (r *Repo) Fetch(ctx context.Context) error {
 	cmd := r.GitExec("fetch -p %s", GetRemoteName())
 	return cmd.Run()
 }
+
+// When remote is true, rebase on the distant version of the branch. When false,
+// rebase on the local version.
+func (r *Repo) Rebase(ctx context.Context, branch Branch, remote bool) error {
+	var cmd *exec.Cmd
+	if remote {
+		cmd = r.GitExec("rebase %s/%s", GetRemoteName(), branch.RemoteName())
+	} else {
+		cmd = r.GitExec("rebase %s", branch.LocalName())
+	}
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func (r *Repo) TryRebaseSilently(ctx context.Context, branch Branch) bool {
+	cmd := r.GitExec("rebase %s", branch.LocalName())
+	err := cmd.Run()
+	if err == nil {
+		return true
+	}
+	abort := r.GitExec("rebase --abort")
+	if err := abort.Run(); err != nil {
+		panic(fmt.Errorf("Tried to abort the rebase but failed: %w", err))
+	}
+	return false
+}
+
+// When remote is true, rebase on the distant version of the branch. When false,
+// rebase on the local version.
+func (r *Repo) InteractiveRebase(ctx context.Context, branch Branch) error {
+	cmd := r.GitExec("rebase --no-fork-point -i %s", branch.LocalName())
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
@@ -252,6 +285,7 @@ func (r *Repo) GetRemoteTip(b Branch) (*object.Commit, error) {
 }
 
 func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
+	fmt.Printf("Removing local branch %s\n", pr.LocalBranch())
 	r.CleanupMultiple(ctx, []*LocalPr{pr}, r.AllPrs(ctx))
 }
 
