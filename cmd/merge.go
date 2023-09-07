@@ -102,10 +102,10 @@ func (m *merger) Merge(ctx context.Context, prs ...*core.LocalPr) error {
 			return fmt.Errorf("did not merge %s", pr.LocalBranch())
 		}
 		if err == nil {
-			fmt.Printf("(✅)\n")
+			fmt.Printf("✅\n")
 			m.Repo.CleanupAfterMerge(ctx, pr)
 		} else {
-			fmt.Printf("(❌ - %s)\n", err)
+			fmt.Printf("❌ (%s)\n", err)
 		}
 	}
 	return nil
