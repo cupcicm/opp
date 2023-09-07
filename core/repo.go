@@ -187,18 +187,9 @@ func (r *Repo) GitExec(format string, args ...any) *exec.Cmd {
 }
 
 func (r *Repo) Fetch(ctx context.Context) error {
-	err := r.FetchContext(ctx, &git.FetchOptions{
-		RemoteName: GetRemoteName(),
-	})
-
-	if err == git.NoErrAlreadyUpToDate {
-		return nil
-	}
-	return err
+	cmd := r.GitExec("fetch -p %s", GetRemoteName())
+	return cmd.Run()
 }
-
-func (r *Repo) Rebase(ctx context.Context, branch Branch) error {
-	cmd := r.GitExec("rebase %s/%s", GetRemoteName(), branch.RemoteName())
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
