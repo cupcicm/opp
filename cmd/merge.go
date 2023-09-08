@@ -46,7 +46,7 @@ func MergeCommand(repo *core.Repo, gh core.GhPullRequest) *cobra.Command {
 			merger := merger{Repo: repo, PullRequests: gh}
 			ancestors := pr.AllAncestors()
 			if len(ancestors) >= 1 {
-				fmt.Printf("%s is not mergeable because it has unmerged dependent PRs.", pr.Url())
+				fmt.Printf("%s is not mergeable because it has unmerged dependent PRs.\n", pr.Url())
 				return fmt.Errorf("please merge %s first", ancestors[0].LocalBranch())
 			}
 			isMergeable, err := merger.IsMergeable(cmd.Context(), pr)
