@@ -42,5 +42,8 @@ func TestStatus(t *testing.T) {
      up-to-date ✅
   3. https://github.com/cupcicm/opp/pull/4
      mergeable  ✅
-     up-to-date ❌`), strings.TrimSpace(out.String()))
+     up-to-date ❌
+  4. https://github.com/cupcicm/opp/pull/5
+     mergeable  ❌ - cannot be merged cleanly into master
+     up-to-date ✅`), strings.TrimSpace(out.String()))
 }
