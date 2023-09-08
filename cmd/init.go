@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -23,32 +24,10 @@ func InitCommand(repo *core.Repo) *cobra.Command {
 			}
 			os.Mkdir(path.Dir(config), 0755)
 
-			reader := bufio.NewReader(os.Stdin)
-			if viper.GetString("github.token") == "" {
-				fmt.Println("Please enter a personal github token.")
-				fmt.Println("You can create one at https://github.com/settings/tokens.")
-				fmt.Println(`It needs to have all of the "repo" permissions checked,`)
-				fmt.Println(`and the "discussion:write" permission.`)
-				fmt.Print("Your github token: ")
-				token := strings.TrimSpace(core.Must(reader.ReadString('\n')))
-				viper.Set("github.token", token)
-			}
-
-			remoteName, githubRepo := extractGithubRepo(repo)
-			viper.Set("repo.github", githubRepo)
-			viper.Set("repo.remote", remoteName)
-
-			githubHead := core.Must(repo.Reference(plumbing.NewRemoteHEADReferenceName(remoteName), false))
-			mainRef := githubHead.Target().Short()
-			mainBranch := mainRef[strings.Index(mainRef, "/")+1:]
-			viper.Set("repo.branch", mainBranch)
-			client := core.NewClient(cmd.Context())
-
-			user, _, err := client.Users.Get(cmd.Context(), "")
-			if err != nil {
-				panic(err)
-			}
-			viper.Set("github.login", user.Login)
+			i := initializer{repo}
+			i.AskGithubToken()
+			i.GuessRepoValues()
+			i.GetGithubValues(cmd.Context())
 
 			if err := viper.SafeWriteConfig(); err != nil {
 				panic(err)
@@ -57,11 +36,39 @@ func InitCommand(repo *core.Repo) *cobra.Command {
 	}
 }
 
-func extractGithubRepo(r *core.Repo) (string, string) {
+type initializer struct {
+	Repo *core.Repo
+}
+
+func (i *initializer) AskGithubToken() {
+	reader := bufio.NewReader(os.Stdin)
+	if viper.GetString("github.token") == "" {
+		fmt.Println("Please enter a personal github token.")
+		fmt.Println("You can create one at https://github.com/settings/tokens.")
+		fmt.Println(`It needs to have all of the "repo" permissions checked,`)
+		fmt.Println(`and the "discussion:write" permission.`)
+		fmt.Print("Your github token: ")
+		token := strings.TrimSpace(core.Must(reader.ReadString('\n')))
+		viper.Set("github.token", token)
+	}
+}
+
+func (i *initializer) GuessRepoValues() {
+	remoteName, githubRepo := i.extractGithubRepo()
+	viper.Set("repo.github", githubRepo)
+	viper.Set("repo.remote", remoteName)
+
+	githubHead := core.Must(i.Repo.Reference(plumbing.NewRemoteHEADReferenceName(remoteName), false))
+	mainRef := githubHead.Target().Short()
+	mainBranch := mainRef[strings.Index(mainRef, "/")+1:]
+	viper.Set("repo.branch", mainBranch)
+}
+
+func (i *initializer) extractGithubRepo() (string, string) {
 	found := false
 	var result string
 	var remoteName string
-	for _, remote := range core.Must(r.Remotes()) {
+	for _, remote := range core.Must(i.Repo.Remotes()) {
 		urls := remote.Config().URLs
 		if len(urls) == 0 {
 			continue
@@ -84,4 +91,14 @@ func extractGithubRepo(r *core.Repo) (string, string) {
 		}
 	}
 	return remoteName, result
+}
+
+func (i *initializer) GetGithubValues(ctx context.Context) {
+	client := core.NewClient(ctx)
+
+	user, _, err := client.Users.Get(ctx, "")
+	if err != nil {
+		panic(err)
+	}
+	viper.Set("github.login", user.Login)
 }
