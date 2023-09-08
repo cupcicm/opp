@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cupcicm/opp/core"
@@ -24,26 +25,41 @@ func PushCommand(repo *core.Repo) *cobra.Command {
 				return nil
 			}
 			pr := branch.(*core.LocalPr)
-			ancestor, err := pr.GetAncestor()
-			if err != nil {
-				return err
-			}
-			if ancestor.IsPr() {
-				ancestorRemoteTip := core.Must(repo.GetRemoteTip(ancestor))
-				prLocalTip := core.Must(repo.GetLocalTip(pr))
-				isAncestor, _ := ancestorRemoteTip.IsAncestor(prLocalTip)
-				if !isAncestor {
-					fmt.Printf(
-						"Branch %s does not have branch %s/%s in its history",
-						core.GetRemoteName(), pr.LocalBranch(), ancestor.RemoteName(),
-					)
-					fmt.Print("Please run opp rebase")
-					return nil
-				}
-			}
-			return pr.Push(cmd.Context())
+			return push(cmd.Context(), repo, pr)
 		},
 	}
 
 	return cmd
+}
+
+func push(ctx context.Context, repo *core.Repo, pr *core.LocalPr) error {
+	ancestor, err := pr.GetAncestor()
+	if err != nil {
+		return err
+	}
+	if ancestor.IsPr() {
+		ancestorRemoteTip := core.Must(repo.GetLocalTip(ancestor))
+		prLocalTip := core.Must(repo.GetLocalTip(pr))
+		isAncestor, _ := ancestorRemoteTip.IsAncestor(prLocalTip)
+		if !isAncestor {
+			fmt.Printf(
+				"Branch %s does not have branch %s in its history\n",
+				pr.LocalBranch(), ancestor.LocalName(),
+			)
+			fmt.Println("Please run opp rebase")
+			return nil
+		}
+		err := push(ctx, repo, ancestor.(*core.LocalPr))
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Printf("Pushing local changes to %s...", pr.Url())
+	err = pr.Push(ctx)
+	if err == nil {
+		fmt.Println("  ✅")
+	} else {
+		fmt.Println("  ❌")
+	}
+	return err
 }
