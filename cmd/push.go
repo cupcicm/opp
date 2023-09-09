@@ -5,16 +5,15 @@ import (
 	"fmt"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v2"
 )
 
-func PushCommand(repo *core.Repo) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "push",
+func PushCommand(repo *core.Repo) *cli.Command {
+	cmd := &cli.Command{
+		Name:    "push",
 		Aliases: []string{"up", "p"},
-		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			repo.Fetch(cmd.Context())
+		Action: func(cCtx *cli.Context) error {
+			repo.Fetch(cCtx.Context)
 			branch, err := repo.CurrentBranch()
 			if err != nil {
 				return err
@@ -25,7 +24,7 @@ func PushCommand(repo *core.Repo) *cobra.Command {
 				return nil
 			}
 			pr := branch.(*core.LocalPr)
-			return push(cmd.Context(), repo, pr)
+			return push(cCtx.Context, repo, pr)
 		},
 	}
 

@@ -10,14 +10,15 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/urfave/cli/v2"
 )
 
-func InitCommand(repo *core.Repo) *cobra.Command {
-	return &cobra.Command{
-		Use: "init",
-		Run: func(cmd *cobra.Command, args []string) {
+func InitCommand(repo *core.Repo) *cli.Command {
+	return &cli.Command{
+		Name:  "init",
+		Usage: "indicate you are going to use opp in this git repo",
+		Action: func(cCtx *cli.Context) error {
 			config := repo.Config()
 			if _, err := os.Stat(config); err == nil {
 				panic("Config file already exists")
@@ -27,11 +28,12 @@ func InitCommand(repo *core.Repo) *cobra.Command {
 			i := initializer{repo}
 			i.AskGithubToken()
 			i.GuessRepoValues()
-			i.GetGithubValues(cmd.Context())
+			i.GetGithubValues(cCtx.Context)
 
 			if err := viper.SafeWriteConfig(); err != nil {
 				panic(err)
 			}
+			return nil
 		},
 	}
 }

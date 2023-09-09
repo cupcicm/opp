@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cupcicm/opp/cmd"
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/tests"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -23,8 +22,7 @@ func TestRebaseCleansDependentBranches(t *testing.T) {
 
 	r.Checkout(pr3)
 
-	command := cmd.RebaseCommand(r.Repo)
-	command.Execute()
+	r.Run("rebase")
 
 	_, err := r.Source.Reference(plumbing.NewBranchReferenceName(pr2.LocalBranch()), true)
 	assert.Equal(t, plumbing.ErrReferenceNotFound, err)

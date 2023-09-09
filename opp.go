@@ -2,16 +2,20 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 
 	"github.com/cupcicm/opp/cmd"
 	"github.com/cupcicm/opp/core"
-	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 func CommandContext() context.Context {
 	return context.Background()
+}
+
+func gh(ctx context.Context) core.GhPullRequest {
+	return core.NewClient(ctx).PullRequests()
 }
 
 func main() {
@@ -21,24 +25,16 @@ func main() {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.ReadInConfig()
-	root := cobra.Command{
-		Use:          "opp",
-		SilenceUsage: true,
-	}
+
+	root := cmd.MakeApp(os.Stdout, repo, gh)
 	ctx := CommandContext()
-	root.AddCommand(cmd.InitCommand(repo))
-	root.AddCommand(cmd.PrCommand(repo, core.NewClient(ctx).PullRequests()))
-	root.AddCommand(cmd.MergeCommand(repo, core.NewClient(ctx).PullRequests()))
-	root.AddCommand(cmd.StatusCommand(os.Stdout, repo, core.NewClient(ctx).PullRequests()))
-	root.AddCommand(cmd.RebaseCommand(repo))
-	root.AddCommand(cmd.PushCommand(repo))
-
 	if !repo.OppEnabled() {
-		cmd.InitCommand(repo).ExecuteContext(ctx)
-		return
+		if err := root.RunContext(ctx, []string{"init"}); err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	if err := root.ExecuteContext(ctx); err != nil {
-		panic(err)
+	if err := root.RunContext(ctx, os.Args); err != nil {
+		log.Fatal(err)
 	}
 }

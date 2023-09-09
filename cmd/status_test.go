@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cupcicm/opp/cmd"
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/tests"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -28,10 +27,7 @@ func TestStatus(t *testing.T) {
 	r.GithubMock.CallGetAndReturnMergeable(4, true)
 	r.GithubMock.CallGetAndReturnMergeable(5, false)
 
-	var out strings.Builder
-	status := cmd.StatusCommand(&out, r.Repo, r.GithubMock)
-	status.SetArgs([]string{})
-	assert.Nil(t, status.Execute())
+	assert.Nil(t, r.Run("status"))
 	assert.Equal(t, strings.TrimSpace(`
 	PR chain #2
   1. https://github.com/cupcicm/opp/pull/2
@@ -45,5 +41,5 @@ func TestStatus(t *testing.T) {
      up-to-date ❌
   4. https://github.com/cupcicm/opp/pull/5
      mergeable  ❌ - cannot be merged cleanly into master
-     up-to-date ✅`), strings.TrimSpace(out.String()))
+     up-to-date ✅`), strings.TrimSpace(r.Out.String()))
 }

@@ -3,7 +3,6 @@ package cmd_test
 import (
 	"testing"
 
-	"github.com/cupcicm/opp/cmd"
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/tests"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ func TestCannotMergeIfDependentPRs(t *testing.T) {
 	r.GithubMock.CallGetAndReturnMergeable(2, true)
 	r.GithubMock.CallGetAndReturnMergeable(3, true)
 
-	assert.NotNil(t, cmd.MergeCommand(r.Repo, r.GithubMock).Execute())
+	assert.NotNil(t, r.Run("merge"))
 }
 
 func TestMerges(t *testing.T) {
@@ -31,7 +30,7 @@ func TestMerges(t *testing.T) {
 	r.GithubMock.CallGetAndReturnMergeable(2, true)
 	r.GithubMock.CallMerge(2)
 
-	assert.Nil(t, cmd.MergeCommand(r.Repo, r.GithubMock).Execute())
+	assert.Nil(t, r.Run("merge"))
 
 	// Assert that we have cleaned the local PR
 	assert.Empty(t, core.Must(r.AllLocalPrs()))
