@@ -12,27 +12,27 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-github/github"
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v2"
 )
 
 var ErrLostPCreationRaceCondition error = errors.New("lost race condition when creating PR")
 var ErrLostPrCreationRaceConditionMultipleTimes error = errors.New("lost race condition when creating PR too many times, aborting")
 
-func PrCommand(repo *core.Repo, gh core.GhPullRequest) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "pr",
-		Aliases: []string{"pull-request", "new"},
-		Args:    cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.Command {
+	cmd := &cli.Command{
+		Name:      "pr",
+		Aliases:   []string{"pull-request", "new"},
+		ArgsUsage: "[pr number]",
+		Action: func(cCtx *cli.Context) error {
 			var headCommit plumbing.Hash
-			if len(args) == 0 {
+			if !cCtx.Args().Present() {
 				var head = core.Must(repo.Head())
 				if !head.Name().IsBranch() {
 					return errors.New("works only when on a branch")
 				}
 				headCommit = head.Hash()
 			} else {
-				hash, err := repo.ResolveRevision(plumbing.Revision(args[0]))
+				hash, err := repo.ResolveRevision(plumbing.Revision(cCtx.Args().First()))
 				if err != nil {
 					return err
 				}
@@ -49,8 +49,8 @@ func PrCommand(repo *core.Repo, gh core.GhPullRequest) *cobra.Command {
 				//return nil
 			}
 			// Create a new PR then.
-			pr := createPr{Repo: repo, PullRequests: gh}
-			return pr.Create(cmd.Context(), headCommit, commits, ancestor)
+			pr := createPr{Repo: repo, PullRequests: gh(cCtx.Context)}
+			return pr.Create(cCtx.Context, headCommit, commits, ancestor)
 		},
 	}
 

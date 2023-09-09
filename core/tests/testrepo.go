@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/cupcicm/opp/cmd"
@@ -17,6 +18,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/urfave/cli/v2"
 )
 
 type Paths struct {
@@ -30,6 +32,8 @@ type TestRepo struct {
 	GithubRepo *git.Repository
 	Paths      Paths
 	GithubMock *GithubMock
+	App        *cli.App
+	Out        *strings.Builder
 }
 
 func setConfig() {
@@ -50,6 +54,8 @@ func NewTestRepo(t *testing.T) *TestRepo {
 	github := core.Must(git.PlainInit(destPath, true))
 
 	repo := core.Repo{Repository: source}
+	mock := &GithubMock{}
+	var out strings.Builder
 	testRepo := TestRepo{
 		Source:     source,
 		GithubRepo: github,
@@ -58,10 +64,22 @@ func NewTestRepo(t *testing.T) *TestRepo {
 			Source:      sourcePath,
 			Destination: destPath,
 		},
-		GithubMock: &GithubMock{},
+		GithubMock: mock,
+		Out:        &out,
+		App: cmd.MakeApp(&out, &repo, func(context.Context) core.GhPullRequest {
+			return mock
+		}),
 	}
 	testRepo.PrepareSource()
 	return &testRepo
+}
+
+func (r *TestRepo) GetGithubMock(ctx context.Context) core.GhPullRequest {
+	return r.GithubMock
+}
+
+func (r *TestRepo) Run(command string, args ...string) error {
+	return r.App.RunContext(context.Background(), append([]string{"opp", command}, args...))
 }
 
 func (r *TestRepo) PrepareSource() {
@@ -95,13 +113,10 @@ func (r *TestRepo) AssertHasPr(t *testing.T, n int) *core.LocalPr {
 }
 
 func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int) *core.LocalPr {
-	cmd := cmd.PrCommand(r.Repo, r.GithubMock)
-
 	r.GithubMock.CallListAndReturnPr(prNumber - 1)
 	r.GithubMock.CallCreate(prNumber)
 
-	cmd.SetArgs([]string{ref})
-	cmd.Execute()
+	r.Run("pr", ref)
 	return r.AssertHasPr(t, prNumber)
 }
 

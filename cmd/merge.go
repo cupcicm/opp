@@ -9,7 +9,7 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/google/go-github/github"
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v2"
 )
 
 type merger struct {
@@ -17,43 +17,45 @@ type merger struct {
 	PullRequests core.GhPullRequest
 }
 
-func MergeCommand(repo *core.Repo, gh core.GhPullRequest) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "merge",
+func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.Command {
+	cmd := &cli.Command{
+		Name:    "merge",
 		Aliases: []string{"m"},
-		Args:    cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Action: func(cCtx *cli.Context) error {
 			var pr *core.LocalPr
 			var mergingCurrentBranch bool
-			if len(args) == 0 {
+			if !cCtx.Args().Present() {
 				// Merge the PR that is the current branch
 				pr, mergingCurrentBranch = repo.PrForHead()
 				if !mergingCurrentBranch {
 					return errors.New("please run opp merge pr/XXX to merge a specific branch")
 				}
 			} else {
-				prNumber, err := strconv.Atoi(args[0])
+				if cCtx.NArg() > 1 {
+					return errors.New("too many arguments")
+				}
+				prNumber, err := strconv.Atoi(cCtx.Args().First())
 				if err == nil {
 					pr = core.NewLocalPr(repo, prNumber)
 				} else {
-					prNumber, err := core.ExtractPrNumber(args[0])
+					prNumber, err := core.ExtractPrNumber(cCtx.Args().First())
 					if err != nil {
-						return fmt.Errorf("%s is not a PR", args[0])
+						return fmt.Errorf("%s is not a PR", cCtx.Args().First())
 					}
 					pr = core.NewLocalPr(repo, prNumber)
 				}
 			}
-			merger := merger{Repo: repo, PullRequests: gh}
+			merger := merger{Repo: repo, PullRequests: gh(cCtx.Context)}
 			ancestors := pr.AllAncestors()
 			if len(ancestors) >= 1 {
 				fmt.Printf("%s is not mergeable because it has unmerged dependent PRs.\n", pr.Url())
 				return fmt.Errorf("please merge %s first", ancestors[0].LocalBranch())
 			}
-			isMergeable, err := merger.IsMergeable(cmd.Context(), pr)
+			isMergeable, err := merger.IsMergeable(cCtx.Context, pr)
 			if !isMergeable {
 				return err
 			}
-			merger.Merge(cmd.Context(), pr)
+			merger.Merge(cCtx.Context, pr)
 			if mergingCurrentBranch {
 				repo.Checkout(repo.BaseBranch())
 			}

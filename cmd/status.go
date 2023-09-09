@@ -9,7 +9,7 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/exp/slices"
 )
 
@@ -19,15 +19,17 @@ type status struct {
 	PullRequests core.GhPullRequest
 }
 
-func StatusCommand(out io.Writer, repo *core.Repo, gh core.GhPullRequest) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "status",
+func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.Command {
+	cmd := &cli.Command{
+		Name:    "status",
 		Aliases: []string{"s"},
-		Args:    cobra.MaximumNArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			status := status{Out: out, Repo: repo, PullRequests: gh}
-			repo.Fetch(cmd.Context())
-			localPrs := repo.AllPrs(cmd.Context())
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() > 0 {
+				return errors.New("too many arguments")
+			}
+			status := status{Out: out, Repo: repo, PullRequests: gh(cCtx.Context)}
+			repo.Fetch(cCtx.Context)
+			localPrs := repo.AllPrs(cCtx.Context)
 			alreadyMentioned := make(map[int]bool)
 			slices.SortFunc(localPrs, func(pr1 core.LocalPr, pr2 core.LocalPr) int {
 				if len(pr1.AllAncestors()) > len(pr2.AllAncestors()) {
@@ -46,12 +48,12 @@ func StatusCommand(out io.Writer, repo *core.Repo, gh core.GhPullRequest) *cobra
 					for i, ancestor := range append(ancestors, &pr) {
 						alreadyMentioned[ancestor.PrNumber] = true
 						fmt.Fprintf(out, "  %d. ", i+1)
-						status.PrintStatus(cmd.Context(), ancestor, 3)
+						status.PrintStatus(cCtx.Context, ancestor, 3)
 					}
 
 				} else {
 					fmt.Fprintf(out, "PR #%d. ", pr.PrNumber)
-					status.PrintStatus(cmd.Context(), &pr, 0)
+					status.PrintStatus(cCtx.Context, &pr, 0)
 				}
 			}
 			return nil

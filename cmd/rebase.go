@@ -7,28 +7,30 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v2"
 )
 
-func RebaseCommand(repo *core.Repo) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "rebase",
-		Aliases: []string{"reb", "rebase"},
-		Short:   "rebase the current branch and dependent PRs if needed.",
-		Args:    cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+func RebaseCommand(repo *core.Repo) *cli.Command {
+	cmd := &cli.Command{
+		Name:    "rebase",
+		Aliases: []string{"reb", "r"},
+		Usage:   "rebase the current branch and dependent PRs if needed.",
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() > 0 {
+				return errors.New("too many arguments")
+			}
 			pr, headIsAPr := repo.PrForHead()
 			if !headIsAPr {
 				fmt.Println("You can run rebase only on local pr branches")
 				return nil
 			}
-			if err := repo.Fetch(cmd.Context()); err != nil {
+			if err := repo.Fetch(cCtx.Context); err != nil {
 				return fmt.Errorf("error during fetch: %w", err)
 			}
 			if !repo.NoLocalChanges() {
 				return errors.New("there are uncommitted changes. Cannot run rebase")
 			}
-			hasBeenMerged, err := rebase(cmd.Context(), repo, pr, true)
+			hasBeenMerged, err := rebase(cCtx.Context, repo, pr, true)
 			if err != nil {
 				return err
 			}
