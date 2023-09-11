@@ -28,11 +28,11 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) 
 				// Merge the PR that is the current branch
 				pr, mergingCurrentBranch = repo.PrForHead()
 				if !mergingCurrentBranch {
-					return errors.New("please run opp merge pr/XXX to merge a specific branch")
+					return cli.Exit("please run opp merge pr/XXX to merge a specific branch", 1)
 				}
 			} else {
 				if cCtx.NArg() > 1 {
-					return errors.New("too many arguments")
+					return cli.Exit("too many arguments", 1)
 				}
 				prNumber, err := strconv.Atoi(cCtx.Args().First())
 				if err == nil {
@@ -40,7 +40,7 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) 
 				} else {
 					prNumber, err := core.ExtractPrNumber(cCtx.Args().First())
 					if err != nil {
-						return fmt.Errorf("%s is not a PR", cCtx.Args().First())
+						return cli.Exit(fmt.Errorf("%s is not a PR", cCtx.Args().First()), 1)
 					}
 					pr = core.NewLocalPr(repo, prNumber)
 				}
@@ -53,9 +53,11 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) 
 			}
 			isMergeable, err := merger.IsMergeable(cCtx.Context, pr)
 			if !isMergeable {
-				return err
+				return cli.Exit(err, 1)
 			}
-			merger.Merge(cCtx.Context, pr)
+			if err := merger.Merge(cCtx.Context, pr); err != nil {
+				return cli.Exit("could not merge", 1)
+			}
 			if mergingCurrentBranch {
 				repo.Checkout(repo.BaseBranch())
 			}
@@ -108,6 +110,7 @@ func (m *merger) Merge(ctx context.Context, prs ...*core.LocalPr) error {
 			m.Repo.CleanupAfterMerge(ctx, pr)
 		} else {
 			fmt.Printf("❌ (%s)\n", err)
+			return err
 		}
 	}
 	return nil

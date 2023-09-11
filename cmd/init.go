@@ -21,7 +21,7 @@ func InitCommand(repo *core.Repo) *cli.Command {
 		Action: func(cCtx *cli.Context) error {
 			config := repo.Config()
 			if _, err := os.Stat(config); err == nil {
-				panic("Config file already exists")
+				return cli.Exit("Config file already exists", 1)
 			}
 			os.Mkdir(path.Dir(config), 0755)
 
@@ -31,7 +31,7 @@ func InitCommand(repo *core.Repo) *cli.Command {
 			i.GetGithubValues(cCtx.Context)
 
 			if err := viper.SafeWriteConfig(); err != nil {
-				panic(err)
+				return cli.Exit(fmt.Errorf("could not write config file: %w", err), 1)
 			}
 			return nil
 		},

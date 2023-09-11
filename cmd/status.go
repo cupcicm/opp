@@ -25,7 +25,7 @@ func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core
 		Aliases: []string{"s"},
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() > 0 {
-				return errors.New("too many arguments")
+				return cli.Exit("too many arguments", 1)
 			}
 			status := status{Out: out, Repo: repo, PullRequests: gh(cCtx.Context)}
 			repo.Fetch(cCtx.Context)

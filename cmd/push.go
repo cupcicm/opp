@@ -34,19 +34,18 @@ func PushCommand(repo *core.Repo) *cli.Command {
 func push(ctx context.Context, repo *core.Repo, pr *core.LocalPr) error {
 	ancestor, err := pr.GetAncestor()
 	if err != nil {
-		return err
+		// Assume the ancestor is the base branch
+		ancestor = repo.BaseBranch()
 	}
 	if ancestor.IsPr() {
 		ancestorRemoteTip := core.Must(repo.GetLocalTip(ancestor))
 		prLocalTip := core.Must(repo.GetLocalTip(pr))
 		isAncestor, _ := ancestorRemoteTip.IsAncestor(prLocalTip)
 		if !isAncestor {
-			fmt.Printf(
-				"Branch %s does not have branch %s in its history\n",
+			return cli.Exit(fmt.Errorf(
+				"branch %s does not have branch %s in its history\nPlease run opp rebase",
 				pr.LocalBranch(), ancestor.LocalName(),
-			)
-			fmt.Println("Please run opp rebase")
-			return nil
+			), 1)
 		}
 		err := push(ctx, repo, ancestor.(*core.LocalPr))
 		if err != nil {
@@ -57,8 +56,9 @@ func push(ctx context.Context, repo *core.Repo, pr *core.LocalPr) error {
 	err = pr.Push(ctx)
 	if err == nil {
 		fmt.Println("  ✅")
-	} else {
-		fmt.Println("  ❌")
+		return nil
 	}
-	return err
+
+	fmt.Println("  ❌")
+	return cli.Exit(fmt.Errorf("could not push : %w", err), 1)
 }

@@ -21,14 +21,13 @@ func RebaseCommand(repo *core.Repo) *cli.Command {
 			}
 			pr, headIsAPr := repo.PrForHead()
 			if !headIsAPr {
-				fmt.Println("You can run rebase only on local pr branches")
-				return nil
+				return cli.Exit("You can run rebase only on local pr branches", 1)
 			}
 			if err := repo.Fetch(cCtx.Context); err != nil {
-				return fmt.Errorf("error during fetch: %w", err)
+				return cli.Exit(fmt.Errorf("error during fetch: %w", err), 1)
 			}
 			if !repo.NoLocalChanges() {
-				return errors.New("there are uncommitted changes. Cannot run rebase")
+				return cli.Exit("there are uncommitted changes. Cannot run rebase", 1)
 			}
 			hasBeenMerged, err := rebase(cCtx.Context, repo, pr, true)
 			if err != nil {
@@ -56,7 +55,8 @@ func rebase(ctx context.Context, repo *core.Repo, pr *core.LocalPr, first bool) 
 
 	ancestor, err := pr.GetAncestor()
 	if err != nil {
-		return false, err
+		return false, cli.Exit(
+			fmt.Errorf(".opp/state/pr/%d is invalid, not sure what to rebase on", pr.PrNumber), 1)
 	}
 
 	if ancestor.IsPr() {

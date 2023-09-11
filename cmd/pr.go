@@ -17,6 +17,10 @@ import (
 
 var ErrLostPCreationRaceCondition error = errors.New("lost race condition when creating PR")
 var ErrLostPrCreationRaceConditionMultipleTimes error = errors.New("lost race condition when creating PR too many times, aborting")
+var ErrAlreadyAPrBranch = errors.New(
+	`You are on a branch that has already been pushed as a PR
+Use opp up to update that PR instead.`,
+)
 
 func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.Command {
 	cmd := &cli.Command{
@@ -28,25 +32,26 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 			if !cCtx.Args().Present() {
 				var head = core.Must(repo.Head())
 				if !head.Name().IsBranch() {
-					return errors.New("works only when on a branch")
+					return cli.Exit("works only when on a branch", 1)
 				}
 				headCommit = head.Hash()
 			} else {
 				hash, err := repo.ResolveRevision(plumbing.Revision(cCtx.Args().First()))
 				if err != nil {
-					return err
+					return cli.Exit(fmt.Sprintf("invalid revision %s", cCtx.Args().First()), 1)
 				}
 				headCommit = *hash
 			}
 			ancestor, commits, err := repo.FindBranchingPoint(headCommit)
 			if err != nil {
-				return err
+				return cli.Exit(fmt.Sprintf(
+					"%s does not descend from %s/%s",
+					headCommit, core.GetRemoteName(), core.GetBaseBranch(),
+				), 1)
 			}
 			tip := core.Must(repo.GetLocalTip(ancestor))
 			if ancestor.IsPr() && tip.Hash == headCommit {
-				fmt.Println("You are on a branch that has already been pushed as a PR")
-				fmt.Println("Use opp up to update that PR instead.")
-				//return nil
+				return cli.Exit(ErrAlreadyAPrBranch, 1)
 			}
 			// Create a new PR then.
 			pr := createPr{Repo: repo, PullRequests: gh(cCtx.Context)}
@@ -72,12 +77,15 @@ func (c *createPr) Create(ctx context.Context, hash plumbing.Hash, commits []*ob
 
 	pr, err := c.create(ctx, hash, ancestor, title, body)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create pull request : %w", err)
 	}
 	c.createLocalBranchForPr(*pr.Number, hash, ancestor)
 	localPr := core.NewLocalPr(c.Repo, *pr.Number)
 	localPr.SetAncestor(ancestor)
-	c.Repo.SetTrackingBranch(localPr, ancestor)
+	err = c.Repo.SetTrackingBranch(localPr, ancestor)
+	if err != nil {
+		err = fmt.Errorf("pr has been created but could not set tracking branch")
+	}
 	fmt.Println(localPr.Url())
 	return err
 }
