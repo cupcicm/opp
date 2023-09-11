@@ -125,7 +125,7 @@ func (b *LocalPr) Url() string {
 
 func (b *LocalPr) GetAncestor() (Branch, error) {
 	if b.state.Ancestor.Name == "" {
-		return nil, errors.New("no ancestors have been set")
+		return b.Repo.BaseBranch(), errors.New("no ancestors have been set")
 	}
 	number, errNotAPr := ExtractPrNumber(b.state.Ancestor.Name)
 	if errNotAPr != nil {
