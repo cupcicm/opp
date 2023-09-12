@@ -27,11 +27,25 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 		Name:      "pr",
 		Aliases:   []string{"pull-request", "new"},
 		ArgsUsage: "[pr number]",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "ancestor",
+				Aliases: []string{"a"},
+				Usage:   "Specify the PR you want the new one to depend on, rather than it being detected automatically",
+			},
+			&cli.BoolFlag{
+				Name:    "checkout",
+				Aliases: []string{"c"},
+				Usage:   "By default, opp pr does not checkout the pr branch after creation. Set this flag so that it does.",
+			},
+		},
 		Action: func(cCtx *cli.Context) error {
+			forHead := false
 			var headCommit plumbing.Hash
 			if !cCtx.Args().Present() {
 				var head = core.Must(repo.Head())
 				headCommit = head.Hash()
+				forHead = true
 			} else {
 				hash, err := repo.ResolveRevision(plumbing.Revision(cCtx.Args().First()))
 				if err != nil {
@@ -46,11 +60,42 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 					headCommit, core.GetRemoteName(), core.GetBaseBranch(),
 				), 1)
 			}
+			overrideAncestor := cCtx.String("ancestor")
+			localChanges := !repo.NoLocalChanges()
+			if localChanges && overrideAncestor != "" {
+				// If you have provided a different ancestor, the commits need to be
+				// rebased on top of it, stash the changes.
+				return cli.Exit("You have provided --ancestor but have local changes, please stash them", 1)
+			}
+			if cCtx.Bool("checkout") && (localChanges && !forHead) {
+				return cli.Exit("Cannot checkout the PR since there are local changes. Please stash them", 1)
+			}
 			tip := core.Must(repo.GetLocalTip(ancestor))
 			if ancestor.IsPr() && tip.Hash == headCommit {
 				return cli.Exit(ErrAlreadyAPrBranch, 1)
 			}
-			// Create a new PR then.
+
+			if overrideAncestor != "" {
+				fmt.Printf("Rebasing %d commits on top of %s... ", len(commits), overrideAncestor)
+				overrideAncestorBranch, err := repo.GetBranch(overrideAncestor)
+				if err != nil {
+					fmt.Println("❌")
+					return cli.Exit(fmt.Errorf("%s is not a valid branch", overrideAncestor), 1)
+				}
+				if !repo.TryRebaseOntoSilently(cCtx.Context, commits[0].Hash, headCommit, overrideAncestorBranch) {
+					hashes := make([]string, len(commits))
+					for i := range commits {
+						hashes[i] = commits[i].Hash.String()
+					}
+					fmt.Println("❌")
+					return cli.Exit(fmt.Errorf(
+						"one of these commits %s cannot be replayed cleanly on %s",
+						strings.Join(hashes, ", "), overrideAncestor,
+					), 1)
+				}
+				fmt.Printf("✅\n")
+			}
+
 			pr := createPr{Repo: repo, PullRequests: gh(cCtx.Context)}
 			return pr.Create(cCtx.Context, headCommit, commits, ancestor)
 		},

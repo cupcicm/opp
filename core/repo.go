@@ -219,6 +219,19 @@ func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch
 	return false
 }
 
+func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, last plumbing.Hash, onto Branch) bool {
+	cmd := r.GitExec("rebase --onto %s/%s %s^ %s", GetRemoteName(), onto.RemoteName(), first.String(), last.String())
+	err := cmd.Run()
+	if err == nil {
+		return true
+	}
+	abort := r.GitExec("rebase --abort")
+	if err := abort.Run(); err != nil {
+		panic(fmt.Errorf("Tried to abort the rebase but failed: %w", err))
+	}
+	return false
+}
+
 // When remote is true, rebase on the distant version of the branch. When false,
 // rebase on the local version.
 func (r *Repo) InteractiveRebase(ctx context.Context, branch Branch) error {
@@ -266,6 +279,18 @@ func (r *Repo) CurrentBranch() (Branch, error) {
 		return NewLocalPr(r, pr), nil
 	}
 	return NewBranch(r, head.Name().Short()), nil
+}
+
+func (r *Repo) GetBranch(name string) (Branch, error) {
+	_, err := r.Repository.Reference(plumbing.NewBranchReferenceName(name), true)
+	if err != nil {
+		return nil, err
+	}
+	pr, err := ExtractPrNumber(name)
+	if err == nil {
+		return NewLocalPr(r, pr), nil
+	}
+	return NewBranch(r, name), nil
 }
 
 func (r *Repo) GetLocalTip(b Branch) (*object.Commit, error) {
