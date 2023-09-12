@@ -27,11 +27,30 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 		Name:      "pr",
 		Aliases:   []string{"pull-request", "new"},
 		ArgsUsage: "[pr number]",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "ancestor",
+				Aliases: []string{"a"},
+				Usage:   "Specify the PR you want the new one to depend on, rather than it being detected automatically",
+			},
+			&cli.BoolFlag{
+				Name:    "checkout",
+				Aliases: []string{"c"},
+				Usage:   "By default, opp pr does not checkout the pr branch after creation. Set this flag so that it does.",
+			},
+		},
 		Action: func(cCtx *cli.Context) error {
+			forHead := false
 			var headCommit plumbing.Hash
+			var overrideAncestorBranch core.Branch
+			previousHead, err := repo.GetBranch(core.Must(repo.Head()).Name().Short())
+			if err != nil {
+				previousHead = nil
+			}
 			if !cCtx.Args().Present() {
 				var head = core.Must(repo.Head())
 				headCommit = head.Hash()
+				forHead = true
 			} else {
 				hash, err := repo.ResolveRevision(plumbing.Revision(cCtx.Args().First()))
 				if err != nil {
@@ -46,13 +65,67 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 					headCommit, core.GetRemoteName(), core.GetBaseBranch(),
 				), 1)
 			}
+			overrideAncestor := cCtx.String("ancestor")
+			localChanges := !repo.NoLocalChanges()
+			if localChanges && overrideAncestor != "" {
+				// If you have provided a different ancestor, the commits need to be
+				// rebased on top of it, stash the changes.
+				return cli.Exit("You have provided --ancestor but have local changes, please stash them", 1)
+			}
+			if cCtx.Bool("checkout") && (localChanges && !forHead) {
+				return cli.Exit("Cannot checkout the PR since there are local changes. Please stash them", 1)
+			}
 			tip := core.Must(repo.GetLocalTip(ancestor))
 			if ancestor.IsPr() && tip.Hash == headCommit {
 				return cli.Exit(ErrAlreadyAPrBranch, 1)
 			}
-			// Create a new PR then.
+
+			if overrideAncestor != "" {
+				fmt.Printf("Rebasing %d commits on top of %s... ", len(commits), overrideAncestor)
+				overrideAncestorBranch, err = repo.GetBranch(overrideAncestor)
+				if err != nil {
+					fmt.Println("❌")
+					return cli.Exit(fmt.Errorf("%s is not a valid branch", overrideAncestor), 1)
+				}
+				if !repo.TryRebaseOntoSilently(cCtx.Context, commits[0].Hash, headCommit, overrideAncestorBranch) {
+					hashes := make([]string, len(commits))
+					for i := range commits {
+						hashes[i] = commits[i].Hash.String()
+					}
+					fmt.Println("❌")
+					return cli.Exit(fmt.Errorf(
+						"one of these commits %s cannot be replayed cleanly on %s",
+						strings.Join(hashes, ", "), overrideAncestor,
+					), 1)
+				}
+				fmt.Printf("✅\n")
+				head, err := repo.Head()
+				if err != nil {
+					repo.Checkout(previousHead)
+					return err
+				}
+				headCommit = head.Hash()
+				ancestor, commits, err = repo.FindBranchingPoint(headCommit)
+				if err != nil {
+					return cli.Exit(fmt.Sprintf(
+						"%s does not descend from %s/%s",
+						headCommit, core.GetRemoteName(), core.GetBaseBranch(),
+					), 1)
+				}
+			}
+
 			pr := createPr{Repo: repo, PullRequests: gh(cCtx.Context)}
-			return pr.Create(cCtx.Context, headCommit, commits, ancestor)
+			localPr, err := pr.Create(cCtx.Context, headCommit, commits, ancestor)
+			if err != nil {
+				return err
+			}
+			if cCtx.Bool("checkout") {
+				return repo.Checkout(localPr)
+			}
+			if overrideAncestor != "" && previousHead != nil {
+				return repo.Checkout(previousHead)
+			}
+			return nil
 		},
 	}
 
@@ -68,13 +141,13 @@ func RemoteBranch(branch string) string {
 	return fmt.Sprintf("%s/%s", core.GetGithubUsername(), branch)
 }
 
-func (c *createPr) Create(ctx context.Context, hash plumbing.Hash, commits []*object.Commit, ancestor core.Branch) error {
+func (c *createPr) Create(ctx context.Context, hash plumbing.Hash, commits []*object.Commit, ancestor core.Branch) (*core.LocalPr, error) {
 
 	title, body := c.GetBodyAndTitle(commits)
 
 	pr, err := c.create(ctx, hash, ancestor, title, body)
 	if err != nil {
-		return fmt.Errorf("could not create pull request : %w", err)
+		return nil, fmt.Errorf("could not create pull request : %w", err)
 	}
 	c.createLocalBranchForPr(*pr.Number, hash, ancestor)
 	localPr := core.NewLocalPr(c.Repo, *pr.Number)
@@ -84,7 +157,7 @@ func (c *createPr) Create(ctx context.Context, hash plumbing.Hash, commits []*ob
 		err = fmt.Errorf("pr has been created but could not set tracking branch")
 	}
 	fmt.Println(localPr.Url())
-	return err
+	return localPr, err
 }
 
 func (c *createPr) GetBodyAndTitle(commits []*object.Commit) (string, string) {
