@@ -31,9 +31,6 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 			var headCommit plumbing.Hash
 			if !cCtx.Args().Present() {
 				var head = core.Must(repo.Head())
-				if !head.Name().IsBranch() {
-					return cli.Exit("works only when on a branch", 1)
-				}
 				headCommit = head.Hash()
 			} else {
 				hash, err := repo.ResolveRevision(plumbing.Revision(cCtx.Args().First()))
