@@ -206,7 +206,7 @@ func (r *Repo) Rebase(ctx context.Context, branch Branch, remote bool) error {
 	return cmd.Run()
 }
 
-func (r *Repo) TryRebaseSilently(ctx context.Context, branch Branch) bool {
+func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch) bool {
 	cmd := r.GitExec("rebase %s", branch.LocalName())
 	err := cmd.Run()
 	if err == nil {

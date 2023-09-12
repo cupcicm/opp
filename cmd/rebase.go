@@ -112,7 +112,7 @@ func rebaseOnDependentPr(ctx context.Context, repo *core.Repo, pr *core.LocalPr,
 		return false, fmt.Errorf("error during checkout: %w", err)
 	}
 	// Try to rebase silently once.
-	if !repo.TryRebaseSilently(ctx, ancestor) {
+	if !repo.TryRebaseCurrentBranchSilently(ctx, ancestor) {
 		fmt.Printf("%s cannot be cleanly rebased on top of %s.\n", pr.LocalBranch(), ancestor.LocalBranch())
 		fmt.Printf("This usually happens when you modified (e.g. amended) some commits in %s.\n", ancestor.LocalBranch())
 		fmt.Printf("Here is an editor window where you need to pick only the commits in %s.\n", pr.LocalBranch())
