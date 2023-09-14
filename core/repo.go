@@ -136,6 +136,10 @@ func (r *Repo) GetCommitsNotInBaseBranch(hash plumbing.Hash) ([]*object.Commit, 
 	return commits, nil
 }
 
+// Takes all commit that are ancestors of headCommit and not in the base branch
+// and walks them until it finds one that is the tip of an exisiting pr/XXX branch.
+// Returns all the commits that were touched during the walk, in git children -> parent order.
+// (e.g. the first commit is always headCommit)
 func (r *Repo) FindBranchingPoint(headCommit plumbing.Hash) (Branch, []*object.Commit, error) {
 	commits, err := r.GetCommitsNotInBaseBranch(headCommit)
 	branchedCommits := make([]*object.Commit, 0)
