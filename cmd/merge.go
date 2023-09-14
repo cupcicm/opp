@@ -43,6 +43,10 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) 
 						return cli.Exit(fmt.Errorf("%s is not a PR", cCtx.Args().First()), 1)
 					}
 					pr = core.NewLocalPr(repo, prNumber)
+					headPr, headIsPr := repo.PrForHead()
+					if headIsPr && headPr.PrNumber == pr.PrNumber {
+						mergingCurrentBranch = true
+					}
 				}
 			}
 			merger := merger{Repo: repo, PullRequests: gh(cCtx.Context)}
