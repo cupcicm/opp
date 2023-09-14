@@ -48,7 +48,7 @@ func TestCanChangePrAncestor(t *testing.T) {
 	r := tests.NewTestRepo(t)
 
 	r.CreatePr(t, "HEAD^", 2)
-	rebasedOnMaster := r.CreatePr(t, "HEAD", 3, "--ancestor", "master")
+	rebasedOnMaster := r.CreatePr(t, "HEAD", 3, "--base", "master")
 
 	assert.True(t, rebasedOnMaster.HasState)
 	ancestor, err := rebasedOnMaster.GetAncestor()
