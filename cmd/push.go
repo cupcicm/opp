@@ -11,7 +11,7 @@ import (
 func PushCommand(repo *core.Repo) *cli.Command {
 	cmd := &cli.Command{
 		Name:    "push",
-		Aliases: []string{"up", "p"},
+		Aliases: []string{"up", "p", "push"},
 		Action: func(cCtx *cli.Context) error {
 			repo.Fetch(cCtx.Context)
 			branch, err := repo.CurrentBranch()
