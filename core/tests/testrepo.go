@@ -14,6 +14,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-github/github"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -82,13 +83,23 @@ func (r *TestRepo) Run(command string, args ...string) error {
 	return r.App.RunContext(context.Background(), append([]string{"opp", command}, args...))
 }
 
+func (r *TestRepo) Commit(msg string) plumbing.Hash {
+	wt := core.Must(r.Source.Worktree())
+	return core.Must(wt.Commit("1", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Robot",
+			Email: "test@robot.com",
+		},
+	}))
+}
+
 func (r *TestRepo) PrepareSource() {
 	for i := 0; i < 10; i++ {
 		os.WriteFile(path.Join(r.Path(), fmt.Sprint(i)), []byte(fmt.Sprint(i)), 0644)
 	}
 	wt := core.Must(r.Source.Worktree())
 	wt.Add("1")
-	hash := core.Must(wt.Commit("1", &git.CommitOptions{}))
+	hash := r.Commit("1")
 	core.Must(r.CreateRemote(&config.RemoteConfig{
 		Name: "origin",
 		URLs: []string{r.Paths.Destination},
@@ -99,7 +110,7 @@ func (r *TestRepo) PrepareSource() {
 	}
 	for i := 0; i < 5; i++ {
 		wt.Add(strconv.Itoa(i))
-		wt.Commit(strconv.Itoa(i), &git.CommitOptions{})
+		r.Commit(strconv.Itoa(i))
 	}
 }
 
