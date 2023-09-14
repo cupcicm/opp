@@ -14,7 +14,6 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-github/github"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -85,15 +84,12 @@ func (r *TestRepo) Run(command string, args ...string) error {
 
 func (r *TestRepo) Commit(msg string) plumbing.Hash {
 	wt := core.Must(r.Source.Worktree())
-	return core.Must(wt.Commit("1", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Robot",
-			Email: "test@robot.com",
-		},
-	}))
+	return core.Must(wt.Commit("msg", &git.CommitOptions{}))
 }
 
 func (r *TestRepo) PrepareSource() {
+	r.GitExec("config user.email test@robot.com").Run()
+	r.GitExec("config user.name Robot").Run()
 	for i := 0; i < 10; i++ {
 		os.WriteFile(path.Join(r.Path(), fmt.Sprint(i)), []byte(fmt.Sprint(i)), 0644)
 	}
