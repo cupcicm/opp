@@ -27,6 +27,7 @@ func TestCanCreatePRWhenNotOnBranch(t *testing.T) {
 	// Go in detached HEAD mode.
 	r.Repo.GitExec("checkout %s", "HEAD^^").Run()
 	fmt.Println("after")
+
 	localPr := r.CreatePr(t, "HEAD", 2)
 
 	assert.True(t, localPr.HasState)
@@ -41,4 +42,22 @@ func TestCanCreatePRWhenNotOnBranch(t *testing.T) {
 	// There are 5 commits prepared in the test repo. We removed 2 by detaching to HEAD^^.
 	// There should be 3 left.
 	assert.Equal(t, 3, len(commits))
+}
+
+func TestCanChangePrAncestor(t *testing.T) {
+	r := tests.NewTestRepo(t)
+
+	r.CreatePr(t, "HEAD^", 2)
+	rebasedOnMaster := r.CreatePr(t, "HEAD", 3, "--ancestor", "master")
+
+	assert.True(t, rebasedOnMaster.HasState)
+	ancestor, err := rebasedOnMaster.GetAncestor()
+	if assert.Nil(t, err) {
+		assert.Equal(t, "master", ancestor.LocalName())
+	}
+	prTip := core.Must(r.Repo.GetLocalTip(rebasedOnMaster))
+	commits := core.Must(r.Repo.GetCommitsNotInBaseBranch(prTip.Hash))
+	// There are 5 commits prepared in the test repo. We removed 2 by detaching to HEAD^^.
+	// There should be 3 left.
+	assert.Equal(t, 1, len(commits))
 }
