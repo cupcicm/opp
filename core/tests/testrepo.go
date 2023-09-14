@@ -112,11 +112,11 @@ func (r *TestRepo) AssertHasPr(t *testing.T, n int) *core.LocalPr {
 	return core.NewLocalPr(r.Repo, n)
 }
 
-func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int) *core.LocalPr {
+func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int, args ...string) *core.LocalPr {
 	r.GithubMock.CallListAndReturnPr(prNumber - 1)
 	r.GithubMock.CallCreate(prNumber)
 
-	r.Run("pr", ref)
+	r.Run("pr", append(args, ref)...)
 	return r.AssertHasPr(t, prNumber)
 }
 
