@@ -225,6 +225,8 @@ func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch
 
 func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, last plumbing.Hash, onto Branch) bool {
 	cmd := r.GitExec("rebase --onto %s/%s %s^ %s", GetRemoteName(), onto.RemoteName(), first.String(), last.String())
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
 	err := cmd.Run()
 	if err == nil {
 		return true
