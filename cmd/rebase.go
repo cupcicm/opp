@@ -13,7 +13,7 @@ import (
 func RebaseCommand(repo *core.Repo) *cli.Command {
 	cmd := &cli.Command{
 		Name:    "rebase",
-		Aliases: []string{"reb", "r"},
+		Aliases: []string{"reb", "r", "pull"},
 		Usage:   "rebase the current branch and dependent PRs if needed.",
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() > 0 {
