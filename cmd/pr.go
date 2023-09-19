@@ -146,10 +146,15 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 	if ancestor.IsPr() && tip.Hash == headCommit {
 		return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
 	}
+	shouldCheckout := cCtx.Bool("checkout")
+	head := core.Must(c.Repo.Head())
+	if !head.Target().IsBranch() {
+		shouldCheckout = true
+	}
 	args := args{
 		Commits:     commits,
 		NeedsRebase: needsRebase,
-		CheckoutPr:  cCtx.Bool("checkout"),
+		CheckoutPr:  shouldCheckout,
 	}
 	if needsRebase {
 		args.AncestorBranch = overrideAncestorBranch
