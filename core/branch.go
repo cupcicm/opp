@@ -120,7 +120,7 @@ func (b *branch) RemoteName() string {
 }
 
 func (b *LocalPr) Url() string {
-	return fmt.Sprintf("https://github.com/%s/pull/%d", GetGithubRepo(), b.PrNumber)
+	return fmt.Sprintf("https://github.com/%s/pulls/%d", GetGithubRepo(), b.PrNumber)
 }
 
 func (b *LocalPr) GetAncestor() (Branch, error) {
