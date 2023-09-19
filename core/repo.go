@@ -61,22 +61,9 @@ func (r *Repo) AllPrs(ctx context.Context) []LocalPr {
 	return PrStates{r}.AllPrs(ctx)
 }
 
-func branchpush(hash plumbing.Hash, branch string) []config.RefSpec {
-	return []config.RefSpec{
-		config.RefSpec(fmt.Sprintf("%s:refs/heads/%s", hash.String(), branch)),
-	}
-}
-
 func (r *Repo) Push(ctx context.Context, hash plumbing.Hash, branch string) error {
-	err := r.Repository.PushContext(ctx, &git.PushOptions{
-		RemoteName: GetRemoteName(),
-		RefSpecs:   branchpush(hash, branch),
-		Force:      true,
-	})
-	if err == git.NoErrAlreadyUpToDate {
-		return nil
-	}
-	return err
+	cmd := r.GitExec("push --force %s %s:refs/heads/%s", GetRemoteName(), hash.String(), branch)
+	return cmd.Run()
 }
 
 func (r *Repo) AllLocalPrs() (map[int]plumbing.Hash, error) {
@@ -218,7 +205,7 @@ func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch
 	}
 	abort := r.GitExec("rebase --abort")
 	if err := abort.Run(); err != nil {
-		panic(fmt.Errorf("Tried to abort the rebase but failed: %w", err))
+		panic(fmt.Errorf("tried to abort the rebase but failed: %w", err))
 	}
 	return false
 }
@@ -231,7 +218,7 @@ func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, l
 	}
 	abort := r.GitExec("rebase --abort")
 	if err := abort.Run(); err != nil {
-		panic(fmt.Errorf("Tried to abort the rebase but failed: %w", err))
+		panic(fmt.Errorf("tried to abort the rebase but failed: %w", err))
 	}
 	return false
 }
