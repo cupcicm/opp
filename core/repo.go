@@ -261,13 +261,15 @@ func (r *Repo) SetTrackingBranch(localBranch Branch, remoteBranch Branch) error 
 // NoLocalChanges returns true when all files are either
 // unmodified or untracked.
 func (r *Repo) NoLocalChanges() bool {
-	for _, status := range Must(r.Worktree().Status()) {
-		if !(status.Worktree == git.Unmodified || status.Worktree == git.Untracked) || !(status.Staging == git.Unmodified || status.Staging == git.Untracked) {
-			return false
-		}
+	cmd := r.GitExec("status --untracked-files=no --short")
+	cmd.Stderr = nil
+	cmd.Stdin = nil
+	out, err := cmd.Output()
+	if err != nil {
+		return false
 	}
-
-	return true
+	// if git status has no output, then there are no local changes.
+	return len(out) == 0
 }
 
 func (r *Repo) CurrentBranch() (Branch, error) {
