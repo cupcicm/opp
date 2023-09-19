@@ -30,16 +30,16 @@ func TestStatus(t *testing.T) {
 	assert.Nil(t, r.Run("status"))
 	assert.Equal(t, strings.TrimSpace(`
 	PR chain #2
-  1. https://github.com/cupcicm/opp/pulls/2
+  1. https://github.com/cupcicm/opp/pull/2
      mergeable  ✅
      up-to-date ✅
-  2. https://github.com/cupcicm/opp/pulls/3
+  2. https://github.com/cupcicm/opp/pull/3
      mergeable  ❌ - cannot be merged cleanly into master
      up-to-date ✅
-  3. https://github.com/cupcicm/opp/pulls/4
+  3. https://github.com/cupcicm/opp/pull/4
      mergeable  ✅
      up-to-date ❌
-  4. https://github.com/cupcicm/opp/pulls/5
+  4. https://github.com/cupcicm/opp/pull/5
      mergeable  ❌ - cannot be merged cleanly into master
      up-to-date ✅`), strings.TrimSpace(r.Out.String()))
 }
