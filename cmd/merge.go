@@ -78,19 +78,25 @@ func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr) (bool, error
 	if err != nil {
 		return false, err
 	}
-	if githubPr.Mergeable == nil {
-		return false, fmt.Errorf("%s is still being checked by github. Retry soon", pr.Url())
+	if githubPr.Merged != nil && *githubPr.Merged {
+		return false, errors.New("already merged")
 	}
-	if *githubPr.Mergeable {
-		return true, nil
+	if githubPr.Mergeable == nil {
+		return false, errors.New("still being checked by github")
 	}
 	switch *githubPr.MergeableState {
 	case "dirty":
 		return false, fmt.Errorf("cannot be merged cleanly into %s", m.Repo.BaseBranch().RemoteName())
 	case "blocked":
+		return false, errors.New("not authorized to merge")
+	case "unstable":
 		return false, errors.New("has some failing checks")
+	case "draft":
+		return false, errors.New("draft PR")
+	case "clean":
+		return true, nil
 	default:
-		return false, errors.New("cannot be merged right now")
+		return false, errors.New("not mergeable")
 	}
 }
 

@@ -148,7 +148,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 	}
 	shouldCheckout := cCtx.Bool("checkout")
 	head := core.Must(c.Repo.Head())
-	if !head.Target().IsBranch() {
+	if !head.Name().IsBranch() {
 		shouldCheckout = true
 	}
 	args := args{

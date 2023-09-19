@@ -171,6 +171,9 @@ func (m *GithubMock) CallCreate(prNumber int) {
 
 func (m *GithubMock) CallGetAndReturnMergeable(prNumber int, mergeable bool) {
 	reason := "dirty"
+	if mergeable {
+		reason = "clean"
+	}
 	pr := github.PullRequest{
 		Number:         &prNumber,
 		Mergeable:      &mergeable,
