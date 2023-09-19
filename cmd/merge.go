@@ -65,6 +65,7 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) 
 			if mergingCurrentBranch {
 				repo.Checkout(repo.BaseBranch())
 			}
+			repo.CleanupAfterMerge(cCtx.Context, pr)
 			return nil
 		},
 	}
@@ -111,7 +112,6 @@ func (m *merger) Merge(ctx context.Context, prs ...*core.LocalPr) error {
 		}
 		if err == nil {
 			fmt.Printf("✅\n")
-			m.Repo.CleanupAfterMerge(ctx, pr)
 		} else {
 			fmt.Printf("❌ (%s)\n", err)
 			return err
