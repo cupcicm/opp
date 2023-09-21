@@ -14,6 +14,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+const ErrorPattern = "could not %s a global gitignore file, please add .opp to your .gitignore file manually"
+
 func InitCommand(repo *core.Repo) *cli.Command {
 	return &cli.Command{
 		Name:  "init",
@@ -29,6 +31,10 @@ func InitCommand(repo *core.Repo) *cli.Command {
 			i.AskGithubToken()
 			i.GuessRepoValues()
 			i.GetGithubValues(cCtx.Context)
+			err := i.AddOppInGlobalGitignore()
+			if err != nil {
+				fmt.Printf("%v\n", err)
+			}
 
 			if err := viper.SafeWriteConfig(); err != nil {
 				return cli.Exit(fmt.Errorf("could not write config file: %w", err), 1)
@@ -103,4 +109,43 @@ func (i *initializer) GetGithubValues(ctx context.Context) {
 		panic(err)
 	}
 	viper.Set("github.login", user.Login)
+}
+
+func (i *initializer) AddOppInGlobalGitignore() error {
+	cmd := i.Repo.GitExec(context.Background(), "config --get core.excludesfile")
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf(ErrorPattern, "find")
+	}
+	gitignore := strings.TrimSpace(string(output))
+	file, err := os.ReadFile(gitignore)
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File does not exist, it's OK
+			file = []byte{}
+		} else {
+			return fmt.Errorf(ErrorPattern, "read")
+		}
+	}
+	lines := strings.Split(string(file), "\n")
+	found := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, ".opp") {
+			found = true
+		}
+	}
+	if !found {
+		lines = append(lines,
+			"# Ignore the opp folder, see https://github.com/cupcicm/opp",
+			".opp/",
+		)
+	}
+	if !strings.HasSuffix(lines[len(lines)-1], "\n") {
+		lines[len(lines)-1] = lines[len(lines)-1] + "\n"
+	}
+	if os.WriteFile(gitignore, []byte(strings.Join(lines, "\n")), 0644) != nil {
+		return fmt.Errorf("write")
+	}
+	return nil
 }
