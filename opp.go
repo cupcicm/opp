@@ -2,19 +2,19 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/cupcicm/opp/cmd"
 	"github.com/cupcicm/opp/core"
 	"github.com/spf13/viper"
 )
 
-func CommandContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), time.Second*12)
+func CommandContext() (context.Context, context.CancelCauseFunc) {
+	return context.WithCancelCause(context.Background())
 }
 
 func gh(ctx context.Context) core.GhPullRequest {
@@ -40,12 +40,12 @@ func main() {
 	signal.Notify(signalChan, os.Interrupt)
 	defer func() {
 		signal.Stop(signalChan)
-		cancel()
+		cancel(nil)
 	}()
 	go func() {
 		select {
 		case <-signalChan: // first signal, cancel context
-			cancel()
+			cancel(errors.New("interrupted"))
 		case <-ctx.Done():
 		}
 		<-signalChan // second signal, hard exit

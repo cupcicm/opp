@@ -62,6 +62,11 @@ func (r *Repo) AllPrs(ctx context.Context) []LocalPr {
 }
 
 func (r *Repo) Push(ctx context.Context, hash plumbing.Hash, branch string) error {
+	ctx, cancel := context.WithTimeoutCause(
+		ctx, GetGithubTimeout(),
+		fmt.Errorf("push to %s too slow, increase github.timeout", GetRemoteName()),
+	)
+	defer cancel()
 	cmd := r.GitExec(ctx, "push --force %s %s:refs/heads/%s", GetRemoteName(), hash.String(), branch)
 	return cmd.Run()
 }
@@ -178,6 +183,11 @@ func (r *Repo) GitExec(ctx context.Context, format string, args ...any) *exec.Cm
 }
 
 func (r *Repo) Fetch(ctx context.Context) error {
+	ctx, cancel := context.WithTimeoutCause(
+		ctx, GetGithubTimeout(),
+		fmt.Errorf("fetch from %s too slow, increase github.timeout", GetRemoteName()),
+	)
+	defer cancel()
 	cmd := r.GitExec(ctx, "fetch -p %s", GetRemoteName())
 	return cmd.Run()
 }
@@ -249,6 +259,11 @@ func (r *Repo) SetTrackingBranch(localBranch Branch, remoteBranch Branch) error 
 // NoLocalChanges returns true when all files are either
 // unmodified or untracked.
 func (r *Repo) NoLocalChanges(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeoutCause(
+		ctx, GetGithubTimeout(),
+		fmt.Errorf("git status too slow, increase github.timeout"),
+	)
+	defer cancel()
 	cmd := r.GitExec(ctx, "status --untracked-files=no --short")
 	cmd.Stderr = nil
 	cmd.Stdin = nil

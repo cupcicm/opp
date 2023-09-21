@@ -275,6 +275,11 @@ func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.B
 }
 
 func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string) (*github.PullRequest, error) {
+	ctx, cancel := context.WithTimeoutCause(
+		ctx, core.GetGithubTimeout(),
+		fmt.Errorf("creating PR too slow, increase github.timeout"),
+	)
+	defer cancel()
 	lastPr, err := c.getLastPrNumber(ctx)
 	if err != nil {
 		return nil, err

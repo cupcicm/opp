@@ -51,21 +51,26 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) 
 			}
 			merger := merger{Repo: repo, PullRequests: gh(cCtx.Context)}
 			ancestors := pr.AllAncestors()
+			mergeContext, cancel := context.WithTimeoutCause(
+				cCtx.Context, core.GetGithubTimeout(),
+				fmt.Errorf("merging too slow, increase github.timeout"),
+			)
+			defer cancel()
 			if len(ancestors) >= 1 {
 				fmt.Printf("%s is not mergeable because it has unmerged dependent PRs.\n", pr.Url())
 				return fmt.Errorf("please merge %s first", ancestors[0].LocalBranch())
 			}
-			isMergeable, err := merger.IsMergeable(cCtx.Context, pr)
+			isMergeable, err := merger.IsMergeable(mergeContext, pr)
 			if !isMergeable {
 				return cli.Exit(err, 1)
 			}
-			if err := merger.Merge(cCtx.Context, pr); err != nil {
+			if err := merger.Merge(mergeContext, pr); err != nil {
 				return cli.Exit("could not merge", 1)
 			}
 			if mergingCurrentBranch {
 				repo.Checkout(repo.BaseBranch())
 			}
-			repo.CleanupAfterMerge(cCtx.Context, pr)
+			repo.CleanupAfterMerge(mergeContext, pr)
 			return nil
 		},
 	}
