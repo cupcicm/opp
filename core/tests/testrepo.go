@@ -88,8 +88,8 @@ func (r *TestRepo) Commit(msg string) plumbing.Hash {
 }
 
 func (r *TestRepo) PrepareSource() {
-	r.GitExec("config user.email test@robot.com").Run()
-	r.GitExec("config user.name Robot").Run()
+	r.GitExec(context.Background(), "config user.email test@robot.com").Run()
+	r.GitExec(context.Background(), "config user.name Robot").Run()
 	for i := 0; i < 10; i++ {
 		os.WriteFile(path.Join(r.Path(), fmt.Sprint(i)), []byte(fmt.Sprint(i)), 0644)
 	}

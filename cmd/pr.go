@@ -114,7 +114,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		return nil, err
 	}
 	overrideAncestor := cCtx.String("base")
-	localChanges := !c.Repo.NoLocalChanges()
+	localChanges := !c.Repo.NoLocalChanges(cCtx.Context)
 	if overrideAncestor != "" {
 		overrideAncestorBranch, err = c.Repo.GetBranch(overrideAncestor)
 		needsRebase = true
