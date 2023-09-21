@@ -52,7 +52,7 @@ func push(ctx context.Context, repo *core.Repo, pr *core.LocalPr) error {
 			return err
 		}
 	}
-	fmt.Printf("Pushing local changes to %s...", pr.Url())
+	fmt.Printf("Pushing local changes to %s ...", pr.Url())
 	err = pr.Push(ctx)
 	if err == nil {
 		fmt.Println("  ✅")
