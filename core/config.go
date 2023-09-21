@@ -2,12 +2,14 @@ package core
 
 import (
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
 
 func init() {
 	viper.SetDefault("github.merge.method", "rebase")
+	viper.SetDefault("github.timeout", 30*time.Second)
 }
 
 func GetGithubToken() string {
@@ -46,4 +48,8 @@ func GetBaseBranch() string {
 
 func GetGithubMergeMethod() string {
 	return viper.GetString("github.merge.method")
+}
+
+func GetGithubTimeout() time.Duration {
+	return viper.GetDuration("github.timeout")
 }
