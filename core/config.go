@@ -6,6 +6,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+func init() {
+	viper.SetDefault("github.merge.method", "rebase")
+}
+
 func GetGithubToken() string {
 	return viper.GetString("github.token")
 }
@@ -41,9 +45,5 @@ func GetBaseBranch() string {
 }
 
 func GetGithubMergeMethod() string {
-	method := viper.GetString("github.merge.method")
-	if method == "" {
-		method = "rebase"
-	}
-	return method
+	return viper.GetString("github.merge.method")
 }
