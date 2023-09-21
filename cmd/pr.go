@@ -59,6 +59,10 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 				Usage:   BaseFlagUsage,
 			},
 			&cli.BoolFlag{
+				Name:    "interactive",
+				Aliases: []string{"i"},
+			},
+			&cli.BoolFlag{
 				Name:    "checkout",
 				Aliases: []string{"c"},
 				Usage:   CheckoutFlagUsage,
@@ -103,6 +107,7 @@ type args struct {
 	Commits        []*object.Commit
 	NeedsRebase    bool
 	CheckoutPr     bool
+	Interactive    bool
 }
 
 func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
@@ -121,6 +126,9 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		if err != nil {
 			return nil, cli.Exit(fmt.Errorf("%s is not a valid branch", overrideAncestor), 1)
 		}
+	}
+	if cCtx.Bool("interactive") {
+		needsRebase = true
 	}
 	// If there are local changes, we need to be very careful before we accept to create this PR
 	if localChanges {
@@ -155,8 +163,9 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		Commits:     commits,
 		NeedsRebase: needsRebase,
 		CheckoutPr:  shouldCheckout,
+		Interactive: cCtx.Bool("interactive"),
 	}
-	if needsRebase {
+	if overrideAncestor != "" {
 		args.AncestorBranch = overrideAncestorBranch
 		args.CheckoutPr = true
 	} else {
@@ -185,20 +194,42 @@ func HeadCommit(repo *core.Repo, args cli.Args) (plumbing.Hash, error) {
 // If that works, then create the PR with those new commits and then checkout the PR
 // since HEAD will be detached after the rebase.
 func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args, error) {
-	fmt.Printf("Rebasing %d commits on top of %s/%s... ", len(previousArgs.Commits), core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName())
 	// Careful ! The first commit is the child-most one, not the other way around.
-	if !c.Repo.TryRebaseOntoSilently(ctx, previousArgs.Commits[len(previousArgs.Commits)-1].Hash, previousArgs.Commits[0].Hash, previousArgs.AncestorBranch) {
-		hashes := make([]string, len(previousArgs.Commits))
-		for i := range previousArgs.Commits {
-			hashes[i] = previousArgs.Commits[i].Hash.String()[0:6]
+	if previousArgs.Interactive {
+		fmt.Println("Choose what commits you want to include in this PR")
+		if !c.Repo.TryRebaseOntoSilently(
+			ctx,
+			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
+			previousArgs.Commits[0].Hash,
+			previousArgs.AncestorBranch,
+			true,
+		) {
+			return nil, cli.Exit(fmt.Errorf(
+				"one of the commits you chose cannot be replayed cleanly on %s/%s",
+				core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName(),
+			), 1)
 		}
-		fmt.Println("❌")
-		return nil, cli.Exit(fmt.Errorf(
-			"one of these commits cannot be replayed cleanly on %s/%s:\n  - %s",
-			core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName(), strings.Join(hashes, "\n  - "),
-		), 1)
+	} else {
+		fmt.Printf("Rebasing %d commits on top of %s/%s... ", len(previousArgs.Commits), core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName())
+		if !c.Repo.TryRebaseOntoSilently(
+			ctx,
+			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
+			previousArgs.Commits[0].Hash,
+			previousArgs.AncestorBranch,
+			false,
+		) {
+			hashes := make([]string, len(previousArgs.Commits))
+			for i := range previousArgs.Commits {
+				hashes[i] = previousArgs.Commits[i].Hash.String()[0:6]
+			}
+			fmt.Println("❌")
+			return nil, cli.Exit(fmt.Errorf(
+				"one of these commits cannot be replayed cleanly on %s/%s:\n  - %s",
+				core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName(), strings.Join(hashes, "\n  - "),
+			), 1)
+		}
+		fmt.Println("✅")
 	}
-	fmt.Println("✅")
 	head, err := c.Repo.Head()
 	if err != nil {
 		return nil, err
@@ -215,7 +246,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 	return &args{
 		AncestorBranch: ancestor,
 		Commits:        commits,
-		NeedsRebase:    true,
+		NeedsRebase:    false,
 		CheckoutPr:     true,
 	}, nil
 }
