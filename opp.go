@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -30,10 +31,9 @@ func main() {
 
 	root := cmd.MakeApp(os.Stdout, repo, gh)
 	ctx, cancel := CommandContext()
-	if !repo.OppEnabled() {
-		if err := root.RunContext(ctx, []string{"init"}); err != nil {
-			log.Fatal(err)
-		}
+	if !repo.OppEnabled() && (len(os.Args) != 2 || os.Args[1] != "init") {
+		fmt.Println("Please run opp init first")
+		os.Exit(1)
 	}
 	signalChan := make(chan os.Signal, 1)
 	// Get a signal when the User Ctrl-C.
