@@ -62,7 +62,7 @@ func (r *Repo) AllPrs(ctx context.Context) []LocalPr {
 }
 
 func (r *Repo) Push(ctx context.Context, hash plumbing.Hash, branch string) error {
-	cmd := r.GitExec("push --force %s %s:refs/heads/%s", GetRemoteName(), hash.String(), branch)
+	cmd := r.GitExec(ctx, "push --force %s %s:refs/heads/%s", GetRemoteName(), hash.String(), branch)
 	return cmd.Run()
 }
 
@@ -164,21 +164,21 @@ func (r *Repo) BaseBranch() Branch {
 }
 
 func (r *Repo) Checkout(branch Branch) error {
-	cmd := r.GitExec("checkout %s", branch.LocalName())
+	cmd := r.GitExec(context.Background(), "checkout %s", branch.LocalName())
 	cmd.Stderr = nil
 	cmd.Stdout = nil
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
 
-func (r *Repo) GitExec(format string, args ...any) *exec.Cmd {
-	cmd := exec.Command("bash", "-c", "git "+fmt.Sprintf(format, args...))
+func (r *Repo) GitExec(ctx context.Context, format string, args ...any) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "bash", "-c", "git "+fmt.Sprintf(format, args...))
 	cmd.Dir = r.Path()
 	return cmd
 }
 
 func (r *Repo) Fetch(ctx context.Context) error {
-	cmd := r.GitExec("fetch -p %s", GetRemoteName())
+	cmd := r.GitExec(ctx, "fetch -p %s", GetRemoteName())
 	return cmd.Run()
 }
 
@@ -187,9 +187,9 @@ func (r *Repo) Fetch(ctx context.Context) error {
 func (r *Repo) Rebase(ctx context.Context, branch Branch, remote bool) error {
 	var cmd *exec.Cmd
 	if remote {
-		cmd = r.GitExec("rebase %s/%s", GetRemoteName(), branch.RemoteName())
+		cmd = r.GitExec(ctx, "rebase %s/%s", GetRemoteName(), branch.RemoteName())
 	} else {
-		cmd = r.GitExec("rebase %s", branch.LocalName())
+		cmd = r.GitExec(ctx, "rebase %s", branch.LocalName())
 	}
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
@@ -198,12 +198,12 @@ func (r *Repo) Rebase(ctx context.Context, branch Branch, remote bool) error {
 }
 
 func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch) bool {
-	cmd := r.GitExec("rebase %s", branch.LocalName())
+	cmd := r.GitExec(ctx, "rebase %s", branch.LocalName())
 	err := cmd.Run()
 	if err == nil {
 		return true
 	}
-	abort := r.GitExec("rebase --abort")
+	abort := r.GitExec(ctx, "rebase --abort")
 	if err := abort.Run(); err != nil {
 		panic(fmt.Errorf("tried to abort the rebase but failed: %w", err))
 	}
@@ -211,12 +211,12 @@ func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch
 }
 
 func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, last plumbing.Hash, onto Branch) bool {
-	cmd := r.GitExec("rebase --onto %s/%s %s^ %s", GetRemoteName(), onto.RemoteName(), first.String(), last.String())
+	cmd := r.GitExec(ctx, "rebase --onto %s/%s %s^ %s", GetRemoteName(), onto.RemoteName(), first.String(), last.String())
 	err := cmd.Run()
 	if err == nil {
 		return true
 	}
-	abort := r.GitExec("rebase --abort")
+	abort := r.GitExec(ctx, "rebase --abort")
 	if err := abort.Run(); err != nil {
 		panic(fmt.Errorf("tried to abort the rebase but failed: %w", err))
 	}
@@ -226,7 +226,7 @@ func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, l
 // When remote is true, rebase on the distant version of the branch. When false,
 // rebase on the local version.
 func (r *Repo) InteractiveRebase(ctx context.Context, branch Branch) error {
-	cmd := r.GitExec("rebase --no-fork-point -i %s", branch.LocalName())
+	cmd := r.GitExec(ctx, "rebase --no-fork-point -i %s", branch.LocalName())
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
@@ -235,6 +235,7 @@ func (r *Repo) InteractiveRebase(ctx context.Context, branch Branch) error {
 
 func (r *Repo) SetTrackingBranch(localBranch Branch, remoteBranch Branch) error {
 	cmd := r.GitExec(
+		context.Background(),
 		"branch -u %s/%s %s",
 		GetRemoteName(),
 		remoteBranch.RemoteName(),
@@ -247,8 +248,8 @@ func (r *Repo) SetTrackingBranch(localBranch Branch, remoteBranch Branch) error 
 
 // NoLocalChanges returns true when all files are either
 // unmodified or untracked.
-func (r *Repo) NoLocalChanges() bool {
-	cmd := r.GitExec("status --untracked-files=no --short")
+func (r *Repo) NoLocalChanges(ctx context.Context) bool {
+	cmd := r.GitExec(ctx, "status --untracked-files=no --short")
 	cmd.Stderr = nil
 	cmd.Stdin = nil
 	out, err := cmd.Output()

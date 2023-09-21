@@ -26,7 +26,7 @@ func RebaseCommand(repo *core.Repo) *cli.Command {
 			if err := repo.Fetch(cCtx.Context); err != nil {
 				return cli.Exit(fmt.Errorf("error during fetch: %w", err), 1)
 			}
-			if !repo.NoLocalChanges() {
+			if !repo.NoLocalChanges(cCtx.Context) {
 				return cli.Exit("there are uncommitted changes. Cannot run rebase", 1)
 			}
 			hasBeenMerged, err := rebase(cCtx.Context, repo, pr, true)

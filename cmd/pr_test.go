@@ -1,6 +1,7 @@
 package cmd_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestCanCreatePRWhenNotOnBranch(t *testing.T) {
 	r := tests.NewTestRepo(t)
 
 	// Go in detached HEAD mode.
-	r.Repo.GitExec("checkout %s", "HEAD^^").Run()
+	r.Repo.GitExec(context.Background(), "checkout %s", "HEAD^^").Run()
 	fmt.Println("after")
 
 	localPr := r.CreatePr(t, "HEAD", 2)
