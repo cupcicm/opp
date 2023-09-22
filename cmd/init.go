@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -31,7 +32,7 @@ func InitCommand(repo *core.Repo) *cli.Command {
 			i.AskGithubToken()
 			i.GuessRepoValues()
 			i.GetGithubValues(cCtx.Context)
-			err := i.AddOppInGlobalGitignore()
+			err := i.AddOppInGlobalGitignore(cCtx.Context)
 			if err != nil {
 				fmt.Printf("%v\n", err)
 			}
@@ -111,13 +112,30 @@ func (i *initializer) GetGithubValues(ctx context.Context) {
 	viper.Set("github.login", user.Login)
 }
 
-func (i *initializer) AddOppInGlobalGitignore() error {
-	cmd := i.Repo.GitExec(context.Background(), "config --get core.excludesfile")
+func (i *initializer) GlobalGitignorePath(ctx context.Context) (string, error) {
+	cmd := i.Repo.GitExec(ctx, "config --get core.excludesfile")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf(ErrorPattern, "find")
+		cmd := i.Repo.GitExec(ctx, "config core.excludesfile ~/.gitignore_global")
+		err := cmd.Run()
+		if err != nil {
+			return "", fmt.Errorf(ErrorPattern, "create")
+		}
+
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", errors.New("could not find user's home directory")
+		}
+		return path.Join(home, ".gitignore_global"), nil
 	}
-	gitignore := strings.TrimSpace(string(output))
+	return strings.TrimSpace(string(output)), nil
+}
+
+func (i *initializer) AddOppInGlobalGitignore(ctx context.Context) error {
+	gitignore, err := i.GlobalGitignorePath(ctx)
+	if err != nil {
+		return err
+	}
 	file, err := os.ReadFile(gitignore)
 
 	if err != nil {
@@ -145,7 +163,7 @@ func (i *initializer) AddOppInGlobalGitignore() error {
 		lines[len(lines)-1] = lines[len(lines)-1] + "\n"
 	}
 	if os.WriteFile(gitignore, []byte(strings.Join(lines, "\n")), 0644) != nil {
-		return fmt.Errorf("write")
+		return fmt.Errorf(ErrorPattern, "write")
 	}
 	return nil
 }
