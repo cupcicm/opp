@@ -14,6 +14,7 @@ func MakeApp(out io.Writer, repo *core.Repo, gh func(context.Context) core.GhPul
 		Usage: "Create, update and merge Github pull requests from the command line.",
 		Commands: []*cli.Command{
 			InitCommand(repo),
+			CleanCommand(repo, gh),
 			PrCommand(repo, gh),
 			MergeCommand(repo, gh),
 			StatusCommand(out, repo, gh),
