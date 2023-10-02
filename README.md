@@ -7,7 +7,7 @@ It takes away the hassle of going to the github UI to create and merge pull requ
 
 ## Installing
 
-```go install https://github.com/cupcicm/opp@latest```
+```go install github.com/cupcicm/opp@latest```
 
 ## Demo
 
