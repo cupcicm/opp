@@ -13,6 +13,19 @@ It takes away the hassle of going to the github UI to create and merge pull requ
 
 [![](https://media.giphy.com/media/BHhprb70pQaHVFdPeC/giphy.gif)](https://asciinema.org/a/4xyPLvoSirJ0r9iK2YCDQz7Zv)
 
+## Usage
+
+Let's say your history is this
+
+![](./assets/opp_initial_state.jpg)
+
+You can create two separate PRs like this
+| Independant PRs | Dependant PRs |
+|---|---|
+| <pre>opp pr HEAD^<br>opp pr --base master HEAD</pre> | <pre>opp pr HEAD^<br>opp pr HEAD</pre> |
+| ![](./assets/opp_indep_prs.jpg) |  ![](./assets/opp_dep_pr.jpg) |
+| You can merge either pr/1 or pr/2 first | You need to merge pr/1 first as pr/2 depends on it |
+
 ## Features
 
 - Create pull requests without having to choose (or remember) a branch name: opp creates a local branch called pr/1234 to match PR #1234.
