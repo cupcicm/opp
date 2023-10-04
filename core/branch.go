@@ -186,6 +186,10 @@ func (b *LocalPr) Push(ctx context.Context) error {
 var ErrNotAPrBranch = errors.New("not a pr branch")
 
 func ExtractPrNumber(branchname string) (int, error) {
+	number, err := strconv.Atoi(branchname)
+	if err == nil {
+		return number, nil
+	}
 	parts := strings.Split(branchname, "/")
 	if len(parts) != 2 {
 		return 0, ErrNotAPrBranch
@@ -193,7 +197,7 @@ func ExtractPrNumber(branchname string) (int, error) {
 	if parts[0] != "pr" {
 		return 0, ErrNotAPrBranch
 	}
-	number, err := strconv.Atoi(parts[1])
+	number, err = strconv.Atoi(parts[1])
 	if err != nil {
 		return 0, ErrNotAPrBranch
 	}
