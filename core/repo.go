@@ -295,13 +295,13 @@ func (r *Repo) CurrentBranch() (Branch, error) {
 }
 
 func (r *Repo) GetBranch(name string) (Branch, error) {
-	_, err := r.Repository.Reference(plumbing.NewBranchReferenceName(name), true)
-	if err != nil {
-		return nil, err
-	}
 	pr, err := ExtractPrNumber(name)
 	if err == nil {
 		return NewLocalPr(r, pr), nil
+	}
+	_, err = r.Repository.Reference(plumbing.NewBranchReferenceName(name), true)
+	if err != nil {
+		return nil, err
 	}
 	return NewBranch(r, name), nil
 }

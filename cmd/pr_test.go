@@ -58,7 +58,19 @@ func TestCanChangePrAncestor(t *testing.T) {
 	}
 	prTip := core.Must(r.Repo.GetLocalTip(rebasedOnMaster))
 	commits := core.Must(r.Repo.GetCommitsNotInBaseBranch(prTip.Hash))
-	// There are 5 commits prepared in the test repo. We removed 2 by detaching to HEAD^^.
-	// There should be 3 left.
+	// From HEAD^ to HEAD there is only 1 commit.
 	assert.Equal(t, 1, len(commits))
+}
+
+func TestCanSetAncestor(t *testing.T) {
+	r := tests.NewTestRepo(t)
+
+	r.CreatePr(t, "HEAD^", 2)
+	rebasedOnMaster := r.CreatePr(t, "HEAD", 3, "--base", "2")
+
+	assert.True(t, rebasedOnMaster.HasState)
+	ancestor, err := rebasedOnMaster.GetAncestor()
+	if assert.Nil(t, err) {
+		assert.Equal(t, "pr/2", ancestor.LocalName())
+	}
 }
