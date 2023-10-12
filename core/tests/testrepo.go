@@ -174,10 +174,12 @@ func (m *GithubMock) CallGetAndReturnMergeable(prNumber int, mergeable bool) {
 	if mergeable {
 		reason = "clean"
 	}
+	state := "open"
 	pr := github.PullRequest{
 		Number:         &prNumber,
 		Mergeable:      &mergeable,
 		MergeableState: &reason,
+		State:          &state,
 	}
 	m.On("Get", mock.Anything, "cupcicm", "opp", prNumber).Return(
 		&pr, nil, nil,
