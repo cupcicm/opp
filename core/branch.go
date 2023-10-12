@@ -74,6 +74,10 @@ func loadState(file string) (*state, error) {
 	return &state, nil
 }
 
+func (b *LocalPr) ReloadState() {
+	b.loadState()
+}
+
 func (b *LocalPr) DeleteState() {
 	os.Remove(b.StateFile())
 }

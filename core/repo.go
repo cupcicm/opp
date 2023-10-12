@@ -9,7 +9,6 @@ import (
 	"path"
 
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/storer"
@@ -188,7 +187,8 @@ func (r *Repo) Fetch(ctx context.Context) error {
 		fmt.Errorf("fetch from %s too slow, increase github.timeout", GetRemoteName()),
 	)
 	defer cancel()
-	cmd := r.GitExec(ctx, "fetch -p %s", GetRemoteName())
+	// The --prune here is important : it removes the branches that have been deleted on github.
+	cmd := r.GitExec(ctx, "fetch --prune %s", GetRemoteName())
 	return cmd.Run()
 }
 
@@ -323,7 +323,12 @@ func (r *Repo) GetRemoteTip(b Branch) (*object.Commit, error) {
 }
 
 func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
-	fmt.Printf("Removing local branch %s\n", pr.LocalBranch())
+	tip, err := r.GetLocalTip(pr)
+	if err != nil {
+		fmt.Printf("could not find the tip of branch %s.\n", pr.LocalBranch())
+		return
+	}
+	fmt.Printf("Removing local branch %s. Tip was %s\n", pr.LocalBranch(), tip.Hash.String()[0:7])
 	r.CleanupMultiple(ctx, []*LocalPr{pr}, r.AllPrs(ctx))
 }
 
@@ -348,8 +353,15 @@ func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others [
 func (r *Repo) DeleteLocalAndRemoteBranch(ctx context.Context, branch Branch) {
 	r.Repository.DeleteBranch(branch.LocalName())
 	r.Storer.RemoveReference(plumbing.NewBranchReferenceName(branch.LocalName()))
-	r.Repository.PushContext(ctx, &git.PushOptions{
-		RemoteName: GetRemoteName(),
-		RefSpecs:   []config.RefSpec{config.RefSpec(":" + branch.RemoteName())},
-	})
+	r.DeleteRemoteBranch(ctx, branch)
+}
+
+func (r *Repo) DeleteRemoteBranch(ctx context.Context, branch Branch) error {
+	ctx, cancel := context.WithTimeoutCause(
+		ctx, GetGithubTimeout(),
+		fmt.Errorf("push to %s too slow, increase github.timeout", GetRemoteName()),
+	)
+	defer cancel()
+	cmd := r.GitExec(ctx, "push %s :refs/heads/%s", GetRemoteName(), branch.RemoteName())
+	return cmd.Run()
 }
