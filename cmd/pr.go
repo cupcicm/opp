@@ -32,7 +32,8 @@ checkout the PR branch.
 There are some cases where opp pr still checkouts the PR branch after creation: when you
 specified a different base for example.
 `)
-	Description = strings.TrimSpace(`
+	DraftFlagUsage = "Create a draft PR."
+	Description    = strings.TrimSpace(`
 Starting from either HEAD, or the provided reference (HEAD~1, a74c9e, a_branch, ...) and walking
 back, gathers commits until it finds either the tip of a PR branch (e.g. pr/xxx) or the base branch
 and creates a PR that contains these commits.
@@ -66,6 +67,11 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 				Name:    "checkout",
 				Aliases: []string{"c"},
 				Usage:   CheckoutFlagUsage,
+			},
+			&cli.BoolFlag{
+				Name:    "draft",
+				Aliases: []string{"d"},
+				Usage:   DraftFlagUsage,
 			},
 		},
 		Action: func(cCtx *cli.Context) error {
@@ -108,6 +114,7 @@ type args struct {
 	NeedsRebase    bool
 	CheckoutPr     bool
 	Interactive    bool
+	DraftPr        bool
 }
 
 func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
@@ -164,6 +171,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		NeedsRebase: needsRebase,
 		CheckoutPr:  shouldCheckout,
 		Interactive: cCtx.Bool("interactive"),
+		DraftPr:     cCtx.Bool("draft"),
 	}
 	if overrideAncestor != "" {
 		args.AncestorBranch = overrideAncestorBranch
@@ -257,7 +265,7 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 	lastCommit := args.Commits[0].Hash
 	title, body := c.GetBodyAndTitle(args.Commits)
 
-	pr, err := c.create(ctx, lastCommit, args.AncestorBranch, title, body)
+	pr, err := c.create(ctx, lastCommit, args.AncestorBranch, title, body, args.DraftPr)
 	if err != nil {
 		return nil, fmt.Errorf("could not create pull request : %w", err)
 	}
@@ -292,9 +300,9 @@ func (c *create) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor
 	c.Repo.Storer.SetReference(plumbing.NewHashReference(ref, hash))
 }
 
-func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string) (*github.PullRequest, error) {
+func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (*github.PullRequest, error) {
 	for attempts := 0; attempts < 3; attempts++ {
-		pr, err := c.createOnce(ctx, hash, ancestor, title, body)
+		pr, err := c.createOnce(ctx, hash, ancestor, title, body, draft)
 		if err == nil {
 			return pr, nil
 		}
@@ -305,7 +313,7 @@ func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.B
 	return nil, ErrLostPrCreationRaceConditionMultipleTimes
 }
 
-func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string) (*github.PullRequest, error) {
+func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (*github.PullRequest, error) {
 	ctx, cancel := context.WithTimeoutCause(
 		ctx, core.GetGithubTimeout(),
 		fmt.Errorf("creating PR too slow, increase github.timeout"),
@@ -326,6 +334,7 @@ func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor co
 		Head:  &remote,
 		Base:  &base,
 		Body:  &body,
+		Draft: &draft,
 	}
 	pr, _, err := c.PullRequests.Create(
 		ctx,
