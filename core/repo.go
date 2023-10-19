@@ -340,6 +340,7 @@ func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others [
 				// This is a PR that depends on the PR we are currently cleaning.
 				// Make it point to the master branch
 				possibleDependentPR.SetAncestor(r.BaseBranch())
+				possibleDependentPR.SetKnownTipsFromAncestor(deleting)
 				r.SetTrackingBranch(&possibleDependentPR, r.BaseBranch())
 			}
 		}

@@ -22,7 +22,7 @@ func TestRebaseCleansDependentBranches(t *testing.T) {
 
 	r.Checkout(pr3)
 
-	r.Run("rebase")
+	assert.Nil(t, r.Run("rebase"))
 
 	_, err := r.Source.Reference(plumbing.NewBranchReferenceName(pr2.LocalBranch()), true)
 	assert.Equal(t, plumbing.ErrReferenceNotFound, err)

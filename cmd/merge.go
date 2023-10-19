@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/cupcicm/opp/core"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/go-github/v56/github"
 	"github.com/urfave/cli/v2"
 )
@@ -111,7 +112,7 @@ func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
 		return err
 	}
 	fmt.Printf("Merging %s... ", pr.LocalBranch())
-	_, r, err := m.PullRequests.Merge(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber, "",
+	merge, r, err := m.PullRequests.Merge(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber, "",
 		&github.PullRequestOptions{
 			SHA:         tip.Hash.String(),
 			MergeMethod: core.GetGithubMergeMethod(),
@@ -126,5 +127,6 @@ func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
 		fmt.Printf("❌ (%s)\n", err)
 		return err
 	}
+	pr.AddKnownTip(plumbing.NewHash(merge.GetSHA()))
 	return nil
 }

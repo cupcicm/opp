@@ -80,6 +80,7 @@ func rebaseOnBaseBranch(ctx context.Context, repo *core.Repo, pr *core.LocalPr, 
 	}
 	remoteBaseBranchTip := core.Must(repo.GetRemoteTip(repo.BaseBranch()))
 	localPrTip := core.Must(repo.GetLocalTip(pr))
+	pr.RememberCurrentTip()
 	if core.Must(localPrTip.IsAncestor(remoteBaseBranchTip)) {
 		// PR has been merged : the local branch is now part
 		// of the history of the main branch.
@@ -100,6 +101,7 @@ func rebaseOnDependentPr(ctx context.Context, repo *core.Repo, pr *core.LocalPr,
 		return false, err
 	}
 	if hasBeenMerged {
+		pr.ReloadState()
 		return rebaseOnBaseBranch(ctx, repo, pr, first)
 	}
 
@@ -122,5 +124,6 @@ func rebaseOnDependentPr(ctx context.Context, repo *core.Repo, pr *core.LocalPr,
 			return false, errors.New("please finish the interactive rebase then re-run")
 		}
 	}
+	pr.RememberCurrentTip()
 	return false, nil
 }

@@ -56,6 +56,7 @@ func push(ctx context.Context, repo *core.Repo, pr *core.LocalPr) error {
 	err = pr.Push(ctx)
 	if err == nil {
 		fmt.Println("  ✅")
+		pr.RememberCurrentTip()
 		return nil
 	}
 
