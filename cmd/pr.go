@@ -11,7 +11,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v56/github"
 	"github.com/urfave/cli/v2"
 )
 
