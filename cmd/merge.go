@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v56/github"
 	"github.com/urfave/cli/v2"
 )
 
