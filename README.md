@@ -20,7 +20,7 @@ Let's say your history is this
 ![](./assets/opp_initial_state.jpg)
 
 You can create two separate PRs like this
-| Independant PRs | Dependant PRs |
+| Independent PRs | Dependent PRs |
 |---|---|
 | <pre>opp pr HEAD^<br>opp pr --base master HEAD</pre> | <pre>opp pr HEAD^<br>opp pr HEAD</pre> |
 | ![](./assets/opp_indep_prs.jpg) |  ![](./assets/opp_dep_pr.jpg) |
