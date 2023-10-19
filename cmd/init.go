@@ -55,7 +55,7 @@ func (i *initializer) AskGithubToken() {
 		fmt.Println("Please enter a personal github token.")
 		fmt.Println("You can create one at https://github.com/settings/tokens.")
 		fmt.Println(`It needs to have all of the "repo" permissions checked,`)
-		fmt.Println(`and the "discussion:write" permission.`)
+		fmt.Println(`and the "write:discussion" permission.`)
 		fmt.Print("Your github token: ")
 		token := strings.TrimSpace(core.Must(reader.ReadString('\n')))
 		viper.Set("github.token", token)
