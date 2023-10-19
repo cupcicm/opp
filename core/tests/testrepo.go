@@ -148,7 +148,7 @@ func (m *GithubMock) Get(ctx context.Context, owner string, repo string, number 
 
 func (m *GithubMock) Merge(ctx context.Context, owner string, repo string, number int, commitMessage string, options *github.PullRequestOptions) (*github.PullRequestMergeResult, *github.Response, error) {
 	args := m.Mock.Called(ctx, owner, repo, number, commitMessage, options)
-	return nil, nil, args.Error(2)
+	return args.Get(0).(*github.PullRequestMergeResult), nil, args.Error(2)
 }
 
 func (m *GithubMock) CallListAndReturnPr(prNumber int) {
@@ -186,8 +186,11 @@ func (m *GithubMock) CallGetAndReturnMergeable(prNumber int, mergeable bool) {
 	).Once()
 }
 
-func (m *GithubMock) CallMerge(prNumber int) {
+func (m *GithubMock) CallMerge(prNumber int, tip string) {
+	response := github.PullRequestMergeResult{
+		SHA: &tip,
+	}
 	m.On("Merge", mock.Anything, "cupcicm", "opp", prNumber, "", mock.Anything).Return(
-		nil, nil, nil,
+		&response, nil, nil,
 	).Once()
 }

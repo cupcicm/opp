@@ -21,17 +21,27 @@ func TestCannotMergeIfDependentPRs(t *testing.T) {
 	assert.NotNil(t, r.Run("merge"))
 }
 
-func TestMerges(t *testing.T) {
+func TestMergeKeepsTrackOfAncestorTips(t *testing.T) {
 	r := tests.NewTestRepo(t)
 
-	pr2 := r.CreatePr(t, "HEAD", 2)
+	pr2 := r.CreatePr(t, "HEAD^", 2)
+	pr3 := r.CreatePr(t, "HEAD", 3)
 	r.Repo.Checkout(pr2)
 
 	r.GithubMock.CallGetAndReturnMergeable(2, true)
-	r.GithubMock.CallMerge(2)
+	r.GithubMock.CallMerge(2, "8f4ca5d979bc19b7c836655a6432d690f78316af")
+
+	// Check that pr3 knows about the tip of its ancestor (pr2)
+	assert.Len(t, pr3.AncestorTips(), 1)
+	pr2Tip := pr3.AncestorTips()[0]
+	assert.Equal(t, pr2Tip, core.Must(r.GetLocalTip(pr2)).Hash.String())
 
 	assert.Nil(t, r.Run("merge"))
 
 	// Assert that we have cleaned the local PR
-	assert.Empty(t, core.Must(r.AllLocalPrs()))
+	assert.Len(t, core.Must(r.AllLocalPrs()), 1)
+
+	pr3.ReloadState()
+	assert.Len(t, pr3.AncestorTips(), 2)
+	assert.Contains(t, pr3.AncestorTips(), "8f4ca5d979bc19b7c836655a6432d690f78316af", pr2Tip)
 }
