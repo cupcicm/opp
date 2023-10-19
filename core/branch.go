@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-git/go-git/v5/plumbing"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
@@ -34,8 +35,10 @@ type Branch interface {
 
 type state struct {
 	Ancestor struct {
-		Name string
+		Name      string
+		KnownTips []string
 	}
+	KnownTips []string
 }
 
 func (b *LocalPr) StateFile() string {
@@ -136,6 +139,33 @@ func (b *LocalPr) GetAncestor() (Branch, error) {
 		return NewBranch(b.Repo, b.state.Ancestor.Name), nil
 	}
 	return NewLocalPr(b.Repo, number), nil
+}
+
+func (b *LocalPr) AncestorTips() []string {
+	ancestor, err := b.GetAncestor()
+	if err != nil {
+		ancestor = b.Repo.BaseBranch()
+	}
+	var tips []string
+	if ancestor.IsPr() {
+		tips = ancestor.(*LocalPr).state.KnownTips
+	}
+	return append(tips, b.state.Ancestor.KnownTips...)
+}
+
+func (b *LocalPr) RememberCurrentTip() {
+	tip := Must(b.Repo.GetLocalTip(b))
+	b.AddKnownTip(tip.Hash)
+}
+
+func (b *LocalPr) AddKnownTip(tip plumbing.Hash) {
+	b.state.KnownTips = append(b.state.KnownTips, tip.String())
+	b.saveState()
+}
+
+func (b *LocalPr) SetKnownTipsFromAncestor(ancestor *LocalPr) {
+	b.state.Ancestor.KnownTips = ancestor.state.KnownTips
+	b.saveState()
 }
 
 func (b *LocalPr) SetAncestor(branch Branch) {
