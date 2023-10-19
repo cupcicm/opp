@@ -105,28 +105,26 @@ func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr) (bool, error
 	}
 }
 
-func (m *merger) Merge(ctx context.Context, prs ...*core.LocalPr) error {
-	for _, pr := range prs {
-		tip, err := m.Repo.GetLocalTip(pr)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Merging %s... ", pr.LocalBranch())
-		_, r, err := m.PullRequests.Merge(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber, "",
-			&github.PullRequestOptions{
-				SHA:         tip.Hash.String(),
-				MergeMethod: core.GetGithubMergeMethod(),
-			})
-		if r != nil && r.StatusCode == http.StatusConflict {
-			fmt.Println("(❌ - wrong remote tip)")
-			return fmt.Errorf("did not merge %s", pr.LocalBranch())
-		}
-		if err == nil {
-			fmt.Printf("✅\n")
-		} else {
-			fmt.Printf("❌ (%s)\n", err)
-			return err
-		}
+func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
+	tip, err := m.Repo.GetLocalTip(pr)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Merging %s... ", pr.LocalBranch())
+	_, r, err := m.PullRequests.Merge(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber, "",
+		&github.PullRequestOptions{
+			SHA:         tip.Hash.String(),
+			MergeMethod: core.GetGithubMergeMethod(),
+		})
+	if r != nil && r.StatusCode == http.StatusConflict {
+		fmt.Println("(❌ - wrong remote tip)")
+		return fmt.Errorf("did not merge %s", pr.LocalBranch())
+	}
+	if err == nil {
+		fmt.Printf("✅\n")
+	} else {
+		fmt.Printf("❌ (%s)\n", err)
+		return err
 	}
 	return nil
 }
