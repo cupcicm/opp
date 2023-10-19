@@ -272,6 +272,7 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 	c.createLocalBranchForPr(*pr.Number, lastCommit, args.AncestorBranch)
 	localPr := core.NewLocalPr(c.Repo, *pr.Number)
 	localPr.SetAncestor(args.AncestorBranch)
+	localPr.RememberCurrentTip()
 	err = c.Repo.SetTrackingBranch(localPr, args.AncestorBranch)
 	if err != nil {
 		err = fmt.Errorf("pr has been created but could not set tracking branch")
