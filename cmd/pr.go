@@ -229,13 +229,13 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 			for i := range previousArgs.Commits {
 				hashes[i] = previousArgs.Commits[i].Hash.String()[0:6]
 			}
-			fmt.Println("❌")
+			PrintFailure(nil)
 			return nil, cli.Exit(fmt.Errorf(
 				"one of these commits cannot be replayed cleanly on %s/%s:\n  - %s",
 				core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName(), strings.Join(hashes, "\n  - "),
 			), 1)
 		}
-		fmt.Println("✅")
+		PrintSuccess()
 	}
 	head, err := c.Repo.Head()
 	if err != nil {
