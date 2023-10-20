@@ -20,6 +20,7 @@ func MakeApp(out io.Writer, repo *core.Repo, gh func(context.Context) core.Gh) *
 		Commands: []*cli.Command{
 			InitCommand(repo),
 			CleanCommand(repo, gh),
+			CloseCommand(repo, gh),
 			PrCommand(repo, gh),
 			MergeCommand(repo, gh),
 			StatusCommand(out, repo, gh),
