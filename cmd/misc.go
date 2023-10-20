@@ -40,3 +40,15 @@ func PrFromFirstArgument(repo *core.Repo, cCtx *cli.Context) (*core.LocalPr, boo
 	}
 	return pr, currentBranch, nil
 }
+
+func PrintSuccess() {
+	fmt.Println("✅")
+}
+
+func PrintFailure(err any) {
+	if err == nil {
+		fmt.Println("❌")
+	} else {
+		fmt.Printf("❌ (%s)\n", err)
+	}
+}

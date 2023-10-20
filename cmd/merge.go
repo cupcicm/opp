@@ -94,13 +94,13 @@ func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
 			MergeMethod: core.GetGithubMergeMethod(),
 		})
 	if r != nil && r.StatusCode == http.StatusConflict {
-		fmt.Println("(❌ - wrong remote tip)")
+		PrintFailure("wrong remote tip")
 		return fmt.Errorf("did not merge %s", pr.LocalBranch())
 	}
 	if err == nil {
-		fmt.Printf("✅\n")
+		PrintSuccess()
 	} else {
-		fmt.Printf("❌ (%s)\n", err)
+		PrintFailure(err)
 		return err
 	}
 	pr.AddKnownTip(plumbing.NewHash(merge.GetSHA()))
