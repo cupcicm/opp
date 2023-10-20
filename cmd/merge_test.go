@@ -15,8 +15,8 @@ func TestCannotMergeIfDependentPRs(t *testing.T) {
 	pr3 := r.CreatePr(t, "HEAD", 3)
 	r.Repo.Checkout(pr3)
 
-	r.GithubMock.CallGetAndReturnMergeable(2, true)
-	r.GithubMock.CallGetAndReturnMergeable(3, true)
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(2, true)
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(3, true)
 
 	assert.NotNil(t, r.Run("merge"))
 }
@@ -28,8 +28,8 @@ func TestMergeKeepsTrackOfAncestorTips(t *testing.T) {
 	pr3 := r.CreatePr(t, "HEAD", 3)
 	r.Repo.Checkout(pr2)
 
-	r.GithubMock.CallGetAndReturnMergeable(2, true)
-	r.GithubMock.CallMerge(2, "8f4ca5d979bc19b7c836655a6432d690f78316af")
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(2, true)
+	r.GithubMock.PullRequestsMock.CallMerge(2, "8f4ca5d979bc19b7c836655a6432d690f78316af")
 
 	// Check that pr3 knows about the tip of its ancestor (pr2)
 	assert.Len(t, pr3.AncestorTips(), 1)

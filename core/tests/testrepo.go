@@ -54,7 +54,10 @@ func NewTestRepo(t *testing.T) *TestRepo {
 	github := core.Must(git.PlainInit(destPath, true))
 
 	repo := core.Repo{Repository: source}
-	mock := &GithubMock{}
+	mock := &GithubMock{
+		PullRequestsMock: &PullRequestsMock{},
+		IssuesMock:       &IssuesMock{},
+	}
 	var out strings.Builder
 	testRepo := TestRepo{
 		Source:     source,
@@ -66,7 +69,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 		},
 		GithubMock: mock,
 		Out:        &out,
-		App: cmd.MakeApp(&out, &repo, func(context.Context) core.GhPullRequest {
+		App: cmd.MakeApp(&out, &repo, func(context.Context) core.Gh {
 			return mock
 		}),
 	}
@@ -75,7 +78,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 	return &testRepo
 }
 
-func (r *TestRepo) GetGithubMock(ctx context.Context) core.GhPullRequest {
+func (r *TestRepo) GetGithubMock(ctx context.Context) *GithubMock {
 	return r.GithubMock
 }
 
@@ -134,8 +137,8 @@ func (r *TestRepo) AssertHasPr(t *testing.T, n int) *core.LocalPr {
 }
 
 func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int, args ...string) *core.LocalPr {
-	r.GithubMock.CallListAndReturnPr(prNumber - 1)
-	r.GithubMock.CallCreate(prNumber)
+	r.GithubMock.PullRequestsMock.CallListAndReturnPr(prNumber - 1)
+	r.GithubMock.PullRequestsMock.CallCreate(prNumber)
 
 	r.Run("pr", append(args, ref)...)
 	return r.AssertHasPr(t, prNumber)
@@ -143,8 +146,8 @@ func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int, args ...stri
 
 func (r *TestRepo) MergePr(t *testing.T, pr *core.LocalPr) error {
 	tip := core.Must(r.GetLocalTip(pr))
-	r.GithubMock.CallGetAndReturnMergeable(pr.PrNumber, true)
-	r.GithubMock.CallMerge(pr.PrNumber, tip.Hash.String())
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(pr.PrNumber, true)
+	r.GithubMock.PullRequestsMock.CallMerge(pr.PrNumber, tip.Hash.String())
 	err := r.Run("merge", fmt.Sprintf("pr/%d", pr.PrNumber))
 	if err != nil {
 		return err
@@ -153,30 +156,49 @@ func (r *TestRepo) MergePr(t *testing.T, pr *core.LocalPr) error {
 }
 
 type GithubMock struct {
+	*PullRequestsMock
+	*IssuesMock
+}
+
+func (g GithubMock) PullRequests() core.GhPullRequest {
+	return g.PullRequestsMock
+}
+func (g GithubMock) Issues() core.GhIssues {
+	return g.IssuesMock
+}
+
+type PullRequestsMock struct {
+	mock.Mock
+}
+type IssuesMock struct {
 	mock.Mock
 }
 
-func (m *GithubMock) List(ctx context.Context, owner string, repo string, opt *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error) {
+func (m *PullRequestsMock) List(ctx context.Context, owner string, repo string, opt *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error) {
 	args := m.Mock.Called(ctx, owner, repo, opt)
 	return args.Get(0).([]*github.PullRequest), nil, args.Error(2)
 }
 
-func (m *GithubMock) Create(ctx context.Context, owner string, repo string, pull *github.NewPullRequest) (*github.PullRequest, *github.Response, error) {
+func (m *PullRequestsMock) Create(ctx context.Context, owner string, repo string, pull *github.NewPullRequest) (*github.PullRequest, *github.Response, error) {
 	args := m.Mock.Called(ctx, owner, repo, pull)
 	return args.Get(0).(*github.PullRequest), nil, args.Error(2)
 }
 
-func (m *GithubMock) Get(ctx context.Context, owner string, repo string, number int) (*github.PullRequest, *github.Response, error) {
+func (m *PullRequestsMock) Get(ctx context.Context, owner string, repo string, number int) (*github.PullRequest, *github.Response, error) {
 	args := m.Mock.Called(ctx, owner, repo, number)
 	return args.Get(0).(*github.PullRequest), nil, args.Error(2)
 }
 
-func (m *GithubMock) Merge(ctx context.Context, owner string, repo string, number int, commitMessage string, options *github.PullRequestOptions) (*github.PullRequestMergeResult, *github.Response, error) {
+func (m *PullRequestsMock) Merge(ctx context.Context, owner string, repo string, number int, commitMessage string, options *github.PullRequestOptions) (*github.PullRequestMergeResult, *github.Response, error) {
 	args := m.Mock.Called(ctx, owner, repo, number, commitMessage, options)
 	return args.Get(0).(*github.PullRequestMergeResult), nil, args.Error(2)
 }
+func (m *IssuesMock) List(ctx context.Context, all bool, opts *github.IssueListOptions) ([]*github.Issue, *github.Response, error) {
+	args := m.Mock.Called(ctx, all, opts)
+	return args.Get(0).([]*github.Issue), nil, args.Error(2)
+}
 
-func (m *GithubMock) CallListAndReturnPr(prNumber int) {
+func (m *PullRequestsMock) CallListAndReturnPr(prNumber int) {
 	pr := github.PullRequest{
 		Number: &prNumber,
 	}
@@ -185,7 +207,7 @@ func (m *GithubMock) CallListAndReturnPr(prNumber int) {
 	).Once()
 }
 
-func (m *GithubMock) CallCreate(prNumber int) {
+func (m *PullRequestsMock) CallCreate(prNumber int) {
 	pr := github.PullRequest{
 		Number: &prNumber,
 	}
@@ -194,7 +216,7 @@ func (m *GithubMock) CallCreate(prNumber int) {
 	).Once()
 }
 
-func (m *GithubMock) CallGetAndReturnMergeable(prNumber int, mergeable bool) {
+func (m *PullRequestsMock) CallGetAndReturnMergeable(prNumber int, mergeable bool) {
 	reason := "dirty"
 	if mergeable {
 		reason = "clean"
@@ -211,7 +233,7 @@ func (m *GithubMock) CallGetAndReturnMergeable(prNumber int, mergeable bool) {
 	).Once()
 }
 
-func (m *GithubMock) CallMerge(prNumber int, tip string) {
+func (m *PullRequestsMock) CallMerge(prNumber int, tip string) {
 	response := github.PullRequestMergeResult{
 		SHA: &tip,
 	}

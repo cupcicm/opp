@@ -22,10 +22,10 @@ func TestStatus(t *testing.T) {
 	pr3 := plumbing.NewBranchReferenceName(core.LocalBranchForPr(3))
 	r.Repo.Storer.SetReference(plumbing.NewSymbolicReference(pr4, pr3))
 
-	r.GithubMock.CallGetAndReturnMergeable(2, true)
-	r.GithubMock.CallGetAndReturnMergeable(3, false)
-	r.GithubMock.CallGetAndReturnMergeable(4, true)
-	r.GithubMock.CallGetAndReturnMergeable(5, false)
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(2, true)
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(3, false)
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(4, true)
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(5, false)
 
 	assert.Nil(t, r.Run("status"))
 	assert.Equal(t, strings.TrimSpace(`

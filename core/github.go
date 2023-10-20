@@ -14,12 +14,25 @@ type GhPullRequest interface {
 	Merge(ctx context.Context, owner string, repo string, number int, commitMessage string, options *github.PullRequestOptions) (*github.PullRequestMergeResult, *github.Response, error)
 }
 
+type GhIssues interface {
+	List(ctx context.Context, all bool, opts *github.IssueListOptions) ([]*github.Issue, *github.Response, error)
+}
+
+type Gh interface {
+	PullRequests() GhPullRequest
+	Issues() GhIssues
+}
+
 type GithubClient struct {
 	*github.Client
 }
 
 func (c *GithubClient) PullRequests() GhPullRequest {
 	return c.Client.PullRequests
+}
+
+func (c *GithubClient) Issues() GhIssues {
+	return c.Client.Issues
 }
 
 func NewClient(ctx context.Context) *GithubClient {

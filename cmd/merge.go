@@ -18,7 +18,7 @@ type merger struct {
 	PullRequests core.GhPullRequest
 }
 
-func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.Command {
+func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 	cmd := &cli.Command{
 		Name:    "merge",
 		Aliases: []string{"m"},
@@ -50,7 +50,7 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) 
 					}
 				}
 			}
-			merger := merger{Repo: repo, PullRequests: gh(cCtx.Context)}
+			merger := merger{Repo: repo, PullRequests: gh(cCtx.Context).PullRequests()}
 			ancestors := pr.AllAncestors()
 			mergeContext, cancel := context.WithTimeoutCause(
 				cCtx.Context, core.GetGithubTimeout(),

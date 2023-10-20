@@ -33,7 +33,7 @@ func TestCleanupCleansDependencies(t *testing.T) {
 	pr3 := r.CreatePr(t, "HEAD", 3)
 
 	r.DeleteRemoteBranch(context.Background(), pr2)
-	r.GithubMock.CallGetAndReturnMergeable(3, true)
+	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(3, true)
 
 	assert.Nil(t, r.Run("clean"))
 

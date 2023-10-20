@@ -17,8 +17,8 @@ func CommandContext() (context.Context, context.CancelCauseFunc) {
 	return context.WithCancelCause(context.Background())
 }
 
-func gh(ctx context.Context) core.GhPullRequest {
-	return core.NewClient(ctx).PullRequests()
+func gh(ctx context.Context) core.Gh {
+	return core.NewClient(ctx)
 }
 
 func main() {
