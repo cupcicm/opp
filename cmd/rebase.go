@@ -75,7 +75,7 @@ func rebaseOnBaseBranch(ctx context.Context, repo *core.Repo, pr *core.LocalPr, 
 	if err := repo.Checkout(pr); err != nil {
 		return false, fmt.Errorf("error during checkout: %w", err)
 	}
-	if err := repo.Rebase(ctx, repo.BaseBranch(), true); err != nil {
+	if err := repo.Rebase(ctx, repo.BaseBranch()); err != nil {
 		return false, fmt.Errorf("error during rebase: %w", err)
 	}
 	remoteBaseBranchTip := core.Must(repo.GetRemoteTip(repo.BaseBranch()))

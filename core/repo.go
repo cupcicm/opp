@@ -194,13 +194,8 @@ func (r *Repo) Fetch(ctx context.Context) error {
 
 // When remote is true, rebase on the distant version of the branch. When false,
 // rebase on the local version.
-func (r *Repo) Rebase(ctx context.Context, branch Branch, remote bool) error {
-	var cmd *exec.Cmd
-	if remote {
-		cmd = r.GitExec(ctx, "rebase %s/%s", GetRemoteName(), branch.RemoteName())
-	} else {
-		cmd = r.GitExec(ctx, "rebase %s", branch.LocalName())
-	}
+func (r *Repo) Rebase(ctx context.Context, branch Branch) error {
+	cmd := r.GitExec(ctx, "rebase %s/%s", GetRemoteName(), branch.RemoteName())
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
@@ -208,7 +203,7 @@ func (r *Repo) Rebase(ctx context.Context, branch Branch, remote bool) error {
 }
 
 func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch) bool {
-	cmd := r.GitExec(ctx, "rebase %s", branch.LocalName())
+	cmd := r.GitExec(ctx, "rebase %s/%s", GetRemoteName(), branch.RemoteName())
 	err := cmd.Run()
 	if err == nil {
 		return true
@@ -240,7 +235,7 @@ func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, l
 // When remote is true, rebase on the distant version of the branch. When false,
 // rebase on the local version.
 func (r *Repo) InteractiveRebase(ctx context.Context, branch Branch) error {
-	cmd := r.GitExec(ctx, "rebase --no-fork-point -i %s", branch.LocalName())
+	cmd := r.GitExec(ctx, "rebase --no-fork-point -i %s/%s", GetRemoteName(), branch.RemoteName())
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
