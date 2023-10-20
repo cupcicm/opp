@@ -75,7 +75,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			},
 		},
 		Action: func(cCtx *cli.Context) error {
-			pr := create{Repo: repo, PullRequests: gh(cCtx.Context).PullRequests()}
+			pr := create{Repo: repo, Github: gh(cCtx.Context)}
 			args, err := pr.SanitizeArgs(cCtx)
 			if err != nil {
 				return err
@@ -104,9 +104,8 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 }
 
 type create struct {
-	Repo         *core.Repo
-	PullRequests core.GhPullRequest
-	Issues       core.GhPullRequest
+	Repo   *core.Repo
+	Github core.Gh
 }
 
 type args struct {
@@ -338,7 +337,7 @@ func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor co
 		Body:  &body,
 		Draft: &draft,
 	}
-	pr, _, err := c.PullRequests.Create(
+	pr, _, err := c.Github.PullRequests().Create(
 		ctx,
 		core.GetGithubOwner(),
 		core.GetGithubRepoName(),
@@ -354,7 +353,7 @@ func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor co
 }
 
 func (c *create) getLastPrNumber(ctx context.Context) (int, error) {
-	pr, _, err := c.PullRequests.List(
+	pr, _, err := c.Github.PullRequests().List(
 		ctx,
 		core.GetGithubOwner(),
 		core.GetGithubRepoName(),
