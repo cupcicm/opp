@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func CleanCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.Command {
+func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 	cmd := &cli.Command{
 		Name:        "clean",
 		Aliases:     []string{"gc"},
@@ -18,7 +18,7 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) 
 			repo.Fetch(cCtx.Context)
 			localPrs := repo.AllPrs(cCtx.Context)
 			for _, pr := range localPrs {
-				pullRequests := gh(cCtx.Context)
+				pullRequests := gh(cCtx.Context).PullRequests()
 				_, err := repo.GetRemoteTip(&pr)
 				if errors.Is(err, plumbing.ErrReferenceNotFound) {
 					// The remote tip does not exist anymore : it has been deleted on the github repo.

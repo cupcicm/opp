@@ -19,7 +19,7 @@ type status struct {
 	PullRequests core.GhPullRequest
 }
 
-func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.Command {
+func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 	cmd := &cli.Command{
 		Name:    "status",
 		Aliases: []string{"s"},
@@ -27,7 +27,7 @@ func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core
 			if cCtx.NArg() > 0 {
 				return cli.Exit("too many arguments", 1)
 			}
-			status := status{Out: out, Repo: repo, PullRequests: gh(cCtx.Context)}
+			status := status{Out: out, Repo: repo, PullRequests: gh(cCtx.Context).PullRequests()}
 			repo.Fetch(cCtx.Context)
 			localPrs := repo.AllPrs(cCtx.Context)
 			alreadyMentioned := make(map[int]bool)

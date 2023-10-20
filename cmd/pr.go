@@ -46,7 +46,7 @@ whether it reached the base branch or the tip of another PR first when walking b
 `)
 )
 
-func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.Command {
+func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 	cmd := &cli.Command{
 		Name:        "pr",
 		Aliases:     []string{"pull-request", "new"},
@@ -75,7 +75,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 			},
 		},
 		Action: func(cCtx *cli.Context) error {
-			pr := create{Repo: repo, PullRequests: gh(cCtx.Context)}
+			pr := create{Repo: repo, PullRequests: gh(cCtx.Context).PullRequests()}
 			args, err := pr.SanitizeArgs(cCtx)
 			if err != nil {
 				return err
@@ -106,6 +106,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cl
 type create struct {
 	Repo         *core.Repo
 	PullRequests core.GhPullRequest
+	Issues       core.GhPullRequest
 }
 
 type args struct {

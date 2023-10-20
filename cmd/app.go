@@ -13,7 +13,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func MakeApp(out io.Writer, repo *core.Repo, gh func(context.Context) core.GhPullRequest) *cli.App {
+func MakeApp(out io.Writer, repo *core.Repo, gh func(context.Context) core.Gh) *cli.App {
 	return &cli.App{
 		Name:  "opp",
 		Usage: "Create, update and merge Github pull requests from the command line.",
