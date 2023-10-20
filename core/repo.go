@@ -363,10 +363,10 @@ func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others [
 	}
 }
 
-func (r *Repo) DeleteLocalAndRemoteBranch(ctx context.Context, branch Branch) {
+func (r *Repo) DeleteLocalAndRemoteBranch(ctx context.Context, branch Branch) error {
 	r.Repository.DeleteBranch(branch.LocalName())
 	r.Storer.RemoveReference(plumbing.NewBranchReferenceName(branch.LocalName()))
-	r.DeleteRemoteBranch(ctx, branch)
+	return r.DeleteRemoteBranch(ctx, branch)
 }
 
 func (r *Repo) DeleteRemoteBranch(ctx context.Context, branch Branch) error {
@@ -375,6 +375,6 @@ func (r *Repo) DeleteRemoteBranch(ctx context.Context, branch Branch) error {
 		fmt.Errorf("push to %s too slow, increase github.timeout", GetRemoteName()),
 	)
 	defer cancel()
-	cmd := r.GitExec(ctx, "push %s :refs/heads/%s", GetRemoteName(), branch.RemoteName())
+	cmd := r.GitExec(ctx, "push %s :%s", GetRemoteName(), branch.RemoteName())
 	return cmd.Run()
 }
