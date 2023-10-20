@@ -15,7 +15,7 @@ type GhPullRequest interface {
 }
 
 type GhIssues interface {
-	List(ctx context.Context, all bool, opts *github.IssueListOptions) ([]*github.Issue, *github.Response, error)
+	ListByRepo(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error)
 }
 
 type Gh interface {

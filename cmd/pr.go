@@ -362,12 +362,13 @@ func (c *create) undoCreatePr(ctx context.Context, prNumber int) {
 	c.Repo.DeleteRemoteBranch(ctx, pr)
 }
 
+// The Github API list pull requests and issues under "issues".
 func (c *create) getLastPrNumber(ctx context.Context) (int, error) {
-	pr, _, err := c.Github.PullRequests().List(
+	issues, _, err := c.Github.Issues().ListByRepo(
 		ctx,
 		core.GetGithubOwner(),
 		core.GetGithubRepoName(),
-		&github.PullRequestListOptions{
+		&github.IssueListByRepoOptions{
 			State:     "all",
 			Sort:      "created",
 			Direction: "desc",
@@ -380,8 +381,9 @@ func (c *create) getLastPrNumber(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(pr) == 0 {
+
+	if len(issues) == 0 {
 		return 0, nil
 	}
-	return *pr[0].Number, nil
+	return *issues[0].Number, nil
 }
