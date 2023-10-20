@@ -33,6 +33,7 @@ There are some cases where opp pr still checkouts the PR branch after creation: 
 specified a different base for example.
 `)
 	DraftFlagUsage = "Create a draft PR."
+	ResetFlagUsage = "Reset the current branch HEAD back to the origin's HEAD after creating the PR."
 	Description    = strings.TrimSpace(`
 Starting from either HEAD, or the provided reference (HEAD~1, a74c9e, a_branch, ...) and walking
 back, gathers commits until it finds either the tip of a PR branch (e.g. pr/xxx) or the base branch
@@ -73,6 +74,11 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 				Aliases: []string{"d"},
 				Usage:   DraftFlagUsage,
 			},
+			&cli.BoolFlag{
+				Name:    "reset",
+				Aliases: []string{"r"},
+				Usage:   ResetFlagUsage,
+			},
 		},
 		Action: func(cCtx *cli.Context) error {
 			pr := create{Repo: repo, Github: gh(cCtx.Context)}
@@ -90,6 +96,12 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 
 			err = nil
 			localPr, createErr := pr.Create(cCtx.Context, args)
+			if args.Reset {
+				err = repo.ResetBaseBranch()
+				if err != nil {
+					return err
+				}
+			}
 			if args.CheckoutPr {
 				err = repo.Checkout(localPr)
 			}
@@ -113,6 +125,7 @@ type args struct {
 	Commits        []*object.Commit
 	NeedsRebase    bool
 	CheckoutPr     bool
+	Reset          bool
 	Interactive    bool
 	DraftPr        bool
 }
@@ -172,6 +185,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		CheckoutPr:  shouldCheckout,
 		Interactive: cCtx.Bool("interactive"),
 		DraftPr:     cCtx.Bool("draft"),
+		Reset:       cCtx.Bool("reset"),
 	}
 	if overrideAncestor != "" {
 		args.AncestorBranch = overrideAncestorBranch

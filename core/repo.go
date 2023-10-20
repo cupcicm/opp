@@ -167,6 +167,15 @@ func (r *Repo) BaseBranch() Branch {
 	return NewBranch(r, GetBaseBranch())
 }
 
+// ResetBaseBranch resets the current branch to the origin's HEAD
+func (r *Repo) ResetBaseBranch() error {
+	cmd := r.GitExec(context.Background(), "reset --hard %s/HEAD", GetRemoteName())
+	cmd.Stderr = nil
+	cmd.Stdout = nil
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
 func (r *Repo) Checkout(branch Branch) error {
 	cmd := r.GitExec(context.Background(), "checkout %s", branch.LocalName())
 	cmd.Stderr = nil
