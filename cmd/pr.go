@@ -269,8 +269,8 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 	if err != nil {
 		return nil, fmt.Errorf("could not create pull request : %w", err)
 	}
-	c.createLocalBranchForPr(*pr.Number, lastCommit, args.AncestorBranch)
-	localPr := core.NewLocalPr(c.Repo, *pr.Number)
+	c.createLocalBranchForPr(pr, lastCommit, args.AncestorBranch)
+	localPr := core.NewLocalPr(c.Repo, pr)
 	localPr.SetAncestor(args.AncestorBranch)
 	localPr.RememberCurrentTip()
 	err = c.Repo.SetTrackingBranch(localPr, args.AncestorBranch)
@@ -301,20 +301,23 @@ func (c *create) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor
 	c.Repo.Storer.SetReference(plumbing.NewHashReference(ref, hash))
 }
 
-func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (*github.PullRequest, error) {
+func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (int, error) {
 	for attempts := 0; attempts < 3; attempts++ {
 		pr, err := c.createOnce(ctx, hash, ancestor, title, body, draft)
 		if err == nil {
 			return pr, nil
 		}
+		if err == ErrLostPrCreationRaceCondition {
+			c.undoCreatePr(ctx, pr)
+		}
 		if err != ErrLostPrCreationRaceCondition {
-			return nil, err
+			return 0, err
 		}
 	}
-	return nil, ErrLostPrCreationRaceConditionMultipleTimes
+	return 0, ErrLostPrCreationRaceConditionMultipleTimes
 }
 
-func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (*github.PullRequest, error) {
+func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (int, error) {
 	ctx, cancel := context.WithTimeoutCause(
 		ctx, core.GetGithubTimeout(),
 		fmt.Errorf("creating PR too slow, increase github.timeout"),
@@ -322,13 +325,13 @@ func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor co
 	defer cancel()
 	lastPr, err := c.getLastPrNumber(ctx)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	remote := core.RemoteBranchForPr(lastPr + 1)
 	base := ancestor.RemoteName()
 	err = c.Repo.Push(ctx, hash, remote)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	pull := github.NewPullRequest{
 		Title: &title,
@@ -344,12 +347,19 @@ func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor co
 		&pull,
 	)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if *pr.Number != lastPr+1 {
-		return nil, ErrLostPrCreationRaceCondition
+		return lastPr + 1, ErrLostPrCreationRaceCondition
 	}
-	return pr, nil
+	return *pr.Number, nil
+}
+
+func (c *create) undoCreatePr(ctx context.Context, prNumber int) {
+	pr := core.NewLocalPr(c.Repo, prNumber)
+	fmt.Println("oops, deleting pr ", pr.LocalBranch())
+	// The local branch has not been created yet, no need to delete it.
+	c.Repo.DeleteRemoteBranch(ctx, pr)
 }
 
 func (c *create) getLastPrNumber(ctx context.Context) (int, error) {
