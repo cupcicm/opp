@@ -232,6 +232,23 @@ func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, l
 	return false
 }
 
+func (r *Repo) TryRebaseBranchOnto(ctx context.Context, parent plumbing.Hash, onto Branch) bool {
+	ontoName := onto.LocalName()
+	if !onto.IsPr() {
+		ontoName = fmt.Sprintf("%s/%s", GetRemoteName(), onto.RemoteName())
+	}
+	cmd := r.GitExec(ctx, "rebase --onto %s %s", ontoName, parent.String())
+	err := cmd.Run()
+	if err == nil {
+		return true
+	}
+	abort := r.GitExec(ctx, "rebase --abort")
+	if err := abort.Run(); err != nil {
+		panic(fmt.Errorf("tried to abort the rebase but failed: %w", err))
+	}
+	return false
+}
+
 // When remote is true, rebase on the distant version of the branch. When false,
 // rebase on the local version.
 func (r *Repo) InteractiveRebase(ctx context.Context, branch Branch) error {
