@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	ErrLostPCreationRaceCondition               = errors.New("lost race condition when creating PR")
+	ErrLostPrCreationRaceCondition              = errors.New("lost race condition when creating PR")
 	ErrLostPrCreationRaceConditionMultipleTimes = errors.New("lost race condition when creating PR too many times, aborting")
 	ErrAlreadyAPrBranch                         = errors.New(strings.TrimSpace(`
 You are on a branch that has already been pushed as a PR
@@ -307,7 +307,7 @@ func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.B
 		if err == nil {
 			return pr, nil
 		}
-		if err != ErrLostPCreationRaceCondition {
+		if err != ErrLostPrCreationRaceCondition {
 			return nil, err
 		}
 	}
@@ -347,7 +347,7 @@ func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor co
 		return nil, err
 	}
 	if *pr.Number != lastPr+1 {
-		return nil, ErrLostPCreationRaceCondition
+		return nil, ErrLostPrCreationRaceCondition
 	}
 	return pr, nil
 }
