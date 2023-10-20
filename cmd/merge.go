@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -23,32 +22,9 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 		Name:    "merge",
 		Aliases: []string{"m"},
 		Action: func(cCtx *cli.Context) error {
-			var pr *core.LocalPr
-			var mergingCurrentBranch bool
-			if !cCtx.Args().Present() {
-				// Merge the PR that is the current branch
-				pr, mergingCurrentBranch = repo.PrForHead()
-				if !mergingCurrentBranch {
-					return cli.Exit("please run opp merge pr/XXX to merge a specific branch", 1)
-				}
-			} else {
-				if cCtx.NArg() > 1 {
-					return cli.Exit("too many arguments", 1)
-				}
-				prNumber, err := strconv.Atoi(cCtx.Args().First())
-				if err == nil {
-					pr = core.NewLocalPr(repo, prNumber)
-				} else {
-					prNumber, err := core.ExtractPrNumber(cCtx.Args().First())
-					if err != nil {
-						return cli.Exit(fmt.Errorf("%s is not a PR", cCtx.Args().First()), 1)
-					}
-					pr = core.NewLocalPr(repo, prNumber)
-					headPr, headIsPr := repo.PrForHead()
-					if headIsPr && headPr.PrNumber == pr.PrNumber {
-						mergingCurrentBranch = true
-					}
-				}
+			pr, mergingCurrentBranch, err := PrFromFirstArgument(repo, cCtx)
+			if err != nil {
+				return err
 			}
 			merger := merger{Repo: repo, PullRequests: gh(cCtx.Context).PullRequests()}
 			ancestors := pr.AllAncestors()
