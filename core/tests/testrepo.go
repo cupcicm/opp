@@ -137,7 +137,7 @@ func (r *TestRepo) AssertHasPr(t *testing.T, n int) *core.LocalPr {
 }
 
 func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int, args ...string) *core.LocalPr {
-	r.GithubMock.PullRequestsMock.CallListAndReturnPr(prNumber - 1)
+	r.GithubMock.IssuesMock.CallListAndReturnPr(prNumber - 1)
 	r.GithubMock.PullRequestsMock.CallCreate(prNumber)
 
 	r.Run("pr", append(args, ref)...)
@@ -193,17 +193,17 @@ func (m *PullRequestsMock) Merge(ctx context.Context, owner string, repo string,
 	args := m.Mock.Called(ctx, owner, repo, number, commitMessage, options)
 	return args.Get(0).(*github.PullRequestMergeResult), nil, args.Error(2)
 }
-func (m *IssuesMock) List(ctx context.Context, all bool, opts *github.IssueListOptions) ([]*github.Issue, *github.Response, error) {
-	args := m.Mock.Called(ctx, all, opts)
+func (m *IssuesMock) ListByRepo(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error) {
+	args := m.Mock.Called(ctx, owner, repo, opts)
 	return args.Get(0).([]*github.Issue), nil, args.Error(2)
 }
 
-func (m *PullRequestsMock) CallListAndReturnPr(prNumber int) {
-	pr := github.PullRequest{
+func (m *IssuesMock) CallListAndReturnPr(prNumber int) {
+	pr := github.Issue{
 		Number: &prNumber,
 	}
-	m.On("List", mock.Anything, "cupcicm", "opp", mock.Anything).Return(
-		[]*github.PullRequest{&pr}, nil, nil,
+	m.On("ListByRepo", mock.Anything, "cupcicm", "opp", mock.Anything).Return(
+		[]*github.Issue{&pr}, nil, nil,
 	).Once()
 }
 
