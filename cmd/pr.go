@@ -303,7 +303,11 @@ func (c *create) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor
 
 func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (int, error) {
 	for attempts := 0; attempts < 3; attempts++ {
-		pr, err := c.createOnce(ctx, hash, ancestor, title, body, draft)
+		first := false
+		if attempts == 0 {
+			first = true
+		}
+		pr, err := c.createOnce(ctx, hash, ancestor, title, body, draft, first)
 		if err == nil {
 			return pr, nil
 		}
@@ -317,13 +321,17 @@ func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.B
 	return 0, ErrLostPrCreationRaceConditionMultipleTimes
 }
 
-func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (int, error) {
+func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool, first bool) (int, error) {
 	ctx, cancel := context.WithTimeoutCause(
 		ctx, core.GetGithubTimeout(),
 		fmt.Errorf("creating PR too slow, increase github.timeout"),
 	)
 	defer cancel()
-	lastPr, err := c.getLastPrNumber(ctx)
+	careful := true
+	if first {
+		careful = true
+	}
+	lastPr, err := c.getLastPrNumber(ctx, careful)
 	if err != nil {
 		return 0, err
 	}
@@ -362,7 +370,8 @@ func (c *create) undoCreatePr(ctx context.Context, prNumber int) {
 	c.Repo.DeleteRemoteBranch(ctx, pr)
 }
 
-func (c *create) getLastPrNumber(ctx context.Context) (int, error) {
+func (c *create) getLastPrNumber(ctx context.Context, careful bool) (int, error) {
+	lastPr := 0
 	pr, _, err := c.Github.PullRequests().List(
 		ctx,
 		core.GetGithubOwner(),
@@ -380,8 +389,20 @@ func (c *create) getLastPrNumber(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(pr) == 0 {
-		return 0, nil
+	lastIssue := 0
+	if careful {
+		issues, _, err := c.Github.Issues().List(
+			ctx,
+			true,
+			&github.IssueListOptions{},
+		)
+		if err == nil && len(issues) > 0 {
+			lastIssue = *issues[0].Number
+		}
 	}
-	return *pr[0].Number, nil
+
+	if len(pr) > 0 {
+		lastPr = *pr[0].Number
+	}
+	return max(lastIssue, lastPr), nil
 }
