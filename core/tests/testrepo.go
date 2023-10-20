@@ -71,6 +71,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 		}),
 	}
 	testRepo.PrepareSource()
+	testRepo.AlwaysFailingEditor()
 	return &testRepo
 }
 
@@ -84,7 +85,20 @@ func (r *TestRepo) Run(command string, args ...string) error {
 
 func (r *TestRepo) Commit(msg string) plumbing.Hash {
 	wt := core.Must(r.Source.Worktree())
-	return core.Must(wt.Commit("msg", &git.CommitOptions{}))
+	return core.Must(wt.Commit(msg, &git.CommitOptions{}))
+}
+
+func (r *TestRepo) RewriteLastCommit(msg string) {
+	cmd := r.GitExec(context.Background(), "commit --amend -m \"%s\"", msg)
+	cmd.Run()
+}
+
+func (r *TestRepo) AlwaysFailingEditor() {
+	cmd := r.GitExec(context.Background(), "config core.editor true")
+	err := cmd.Run()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (r *TestRepo) PrepareSource() {
@@ -125,6 +139,17 @@ func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int, args ...stri
 
 	r.Run("pr", append(args, ref)...)
 	return r.AssertHasPr(t, prNumber)
+}
+
+func (r *TestRepo) MergePr(t *testing.T, pr *core.LocalPr) error {
+	tip := core.Must(r.GetLocalTip(pr))
+	r.GithubMock.CallGetAndReturnMergeable(pr.PrNumber, true)
+	r.GithubMock.CallMerge(pr.PrNumber, tip.Hash.String())
+	err := r.Run("merge", fmt.Sprintf("pr/%d", pr.PrNumber))
+	if err != nil {
+		return err
+	}
+	return r.Push(context.Background(), tip.Hash, r.BaseBranch().RemoteName())
 }
 
 type GithubMock struct {
