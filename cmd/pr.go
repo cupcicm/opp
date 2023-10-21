@@ -88,15 +88,14 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 				args = newArgs
 			}
 
-			err = nil
-			localPr, createErr := pr.Create(cCtx.Context, args)
+			localPr, err := pr.Create(cCtx.Context, args)
+			if err != nil {
+				return err
+			}
 			if args.CheckoutPr {
-				err = repo.Checkout(localPr)
+				return repo.Checkout(localPr)
 			}
-			if createErr != nil {
-				return createErr
-			}
-			return err
+			return nil
 		},
 	}
 
