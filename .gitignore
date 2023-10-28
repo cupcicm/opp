@@ -2,6 +2,9 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 
+# Don't add our own command to git
+opp
+
 # Test binary, built with `go test -c`
 *.test
 
