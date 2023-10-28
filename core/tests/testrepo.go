@@ -198,6 +198,11 @@ func (m *IssuesMock) ListByRepo(ctx context.Context, owner string, repo string, 
 	return args.Get(0).([]*github.Issue), nil, args.Error(2)
 }
 
+func (m *IssuesMock) CreateComment(ctx context.Context, owner string, repo string, number int, comment *github.IssueComment) (*github.IssueComment, *github.Response, error) {
+	args := m.Mock.Called(ctx, owner, repo, comment)
+	return args.Get(0).(*github.IssueComment), nil, args.Error(2)
+}
+
 func (m *IssuesMock) CallListAndReturnPr(prNumber int) {
 	pr := github.Issue{
 		Number: &prNumber,
