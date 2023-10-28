@@ -13,7 +13,10 @@ func PushCommand(repo *core.Repo) *cli.Command {
 		Name:    "push",
 		Aliases: []string{"up", "p", "push"},
 		Action: func(cCtx *cli.Context) error {
-			repo.Fetch(cCtx.Context)
+			err := repo.Fetch(cCtx.Context)
+			if err != nil {
+				return fmt.Errorf("on fetch: %w", err)
+			}
 			branch, err := repo.CurrentBranch()
 			if err != nil {
 				return err
