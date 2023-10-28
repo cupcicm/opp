@@ -16,6 +16,7 @@ type GhPullRequest interface {
 
 type GhIssues interface {
 	ListByRepo(ctx context.Context, owner string, repo string, opts *github.IssueListByRepoOptions) ([]*github.Issue, *github.Response, error)
+	CreateComment(ctx context.Context, owner string, repo string, number int, comment *github.IssueComment) (*github.IssueComment, *github.Response, error)
 }
 
 type Gh interface {
