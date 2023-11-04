@@ -232,6 +232,19 @@ func (m *PullRequestsMock) CallGetAndReturnMergeable(prNumber int, mergeable boo
 		&pr, nil, nil,
 	).Once()
 }
+func (m *PullRequestsMock) CallGetAndReturnMergeabilityBeingEvaluated(prNumber int) {
+	reason := "clean"
+	state := "open"
+	pr := github.PullRequest{
+		Number:         &prNumber,
+		Mergeable:      nil,
+		MergeableState: &reason,
+		State:          &state,
+	}
+	m.On("Get", mock.Anything, "cupcicm", "opp", prNumber).Return(
+		&pr, nil, nil,
+	).Once()
+}
 
 func (m *PullRequestsMock) CallMerge(prNumber int, tip string) {
 	response := github.PullRequestMergeResult{
