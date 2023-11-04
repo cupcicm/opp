@@ -56,7 +56,7 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 			)
 			defer cancel()
 			if err := merger.Merge(mergeContext, pr); err != nil {
-				return cli.Exit("could not merge", 1)
+				return cli.Exit(fmt.Sprintf("could not merge. Err: %s", err.Error()), 1)
 			}
 			if mergingCurrentBranch {
 				repo.Checkout(repo.BaseBranch())
