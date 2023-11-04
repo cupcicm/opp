@@ -16,6 +16,7 @@ import (
 var (
 	ErrBeingEvaluated         = errors.New("still being checked by github")
 	mergeabilityCheckInterval = time.Second * 2
+	mergeabilityCheckTimeout  = time.Second * 30
 )
 
 type merger struct {
@@ -103,7 +104,7 @@ func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr) (bool, error
 
 func (m *merger) WaitForMergeability(ctx context.Context, pr *core.LocalPr) (bool, error) {
 	t := time.NewTicker(mergeabilityCheckInterval)
-	tenSeconds, cancel := context.WithTimeout(ctx, 30*time.Second)
+	mergeabilityCheckCtx, cancel := context.WithTimeout(ctx, mergeabilityCheckTimeout)
 	defer t.Stop()
 	defer cancel()
 	for i := 0; i < 5; i++ {
@@ -113,7 +114,7 @@ func (m *merger) WaitForMergeability(ctx context.Context, pr *core.LocalPr) (boo
 		case <-ctx.Done():
 			return false, ErrBeingEvaluated
 		}
-		mergeable, err := m.IsMergeable(tenSeconds, pr)
+		mergeable, err := m.IsMergeable(mergeabilityCheckCtx, pr)
 		if mergeable || err != ErrBeingEvaluated {
 			return mergeable, err
 		}
