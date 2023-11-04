@@ -13,7 +13,10 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var ErrBeingEvaluated = errors.New("still being checked by github")
+var (
+	ErrBeingEvaluated         = errors.New("still being checked by github")
+	mergeabilityCheckInterval = time.Second * 2
+)
 
 type merger struct {
 	Repo         *core.Repo
@@ -97,8 +100,8 @@ func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr) (bool, error
 }
 
 func (m *merger) WaitForMergeability(ctx context.Context, pr *core.LocalPr) (bool, error) {
-	t := time.NewTicker(time.Second * 2)
-	tenSeconds, cancel := context.WithTimeout(ctx, 10*time.Second)
+	t := time.NewTicker(mergeabilityCheckInterval)
+	tenSeconds, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer t.Stop()
 	defer cancel()
 	for i := 0; i < 5; i++ {
@@ -139,4 +142,12 @@ func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
 	}
 	pr.AddKnownTip(plumbing.NewHash(merge.GetSHA()))
 	return nil
+}
+
+func SetShortMergeabilityIntervalForTests() func() {
+	initial := mergeabilityCheckInterval
+	mergeabilityCheckInterval = time.Millisecond
+	return func() {
+		mergeabilityCheckInterval = initial
+	}
 }
