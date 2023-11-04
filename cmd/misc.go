@@ -8,28 +8,42 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// PrFromFirstArgument returns the PR number supplied as a commandline argument, or if no argument is supplied,
+// the PR for the current branch.
+// The PR number can be supplied as a simple integer, or in the form `pr/$number`.
 func PrFromFirstArgument(repo *core.Repo, cCtx *cli.Context) (*core.LocalPr, bool, error) {
+	var prParam string
+	if cCtx.Args().Present() {
+		if cCtx.NArg() > 1 {
+			return nil, false, cli.Exit("too many arguments", 1)
+		}
+		prParam = cCtx.Args().First()
+
+	}
+	return PrFromStringOrCurrentBranch(repo, prParam)
+}
+
+// PrFromStringOrCurrentBranch returns the PR based on the given string (if non-empty),
+// or the current branch.
+func PrFromStringOrCurrentBranch(repo *core.Repo, str string) (*core.LocalPr, bool, error) {
 	var pr *core.LocalPr
 	currentBranch := false
-	if !cCtx.Args().Present() {
-		// Merge the PR that is the current branch
+	if len(str) == 0 {
+		// Use the PR that is the current branch
 		currentBranch = true
 		var found bool
 		pr, found = repo.PrForHead()
 		if !found {
-			return nil, false, cli.Exit("please run opp merge pr/XXX to merge a specific branch", 1)
+			return nil, false, cli.Exit("please run opp with pr/XXX to specify a specific PR branch", 1)
 		}
 	} else {
-		if cCtx.NArg() > 1 {
-			return nil, false, cli.Exit("too many arguments", 1)
-		}
-		prNumber, err := strconv.Atoi(cCtx.Args().First())
+		prNumber, err := strconv.Atoi(str)
 		if err == nil {
 			pr = core.NewLocalPr(repo, prNumber)
 		} else {
-			prNumber, err := core.ExtractPrNumber(cCtx.Args().First())
+			prNumber, err := core.ExtractPrNumber(str)
 			if err != nil {
-				return nil, false, cli.Exit(fmt.Errorf("%s is not a PR", cCtx.Args().First()), 1)
+				return nil, false, cli.Exit(fmt.Errorf("%s is not a PR", str), 1)
 			}
 			pr = core.NewLocalPr(repo, prNumber)
 			headPr, headIsPr := repo.PrForHead()
