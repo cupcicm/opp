@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/go-github/v56/github"
 	"github.com/urfave/cli/v2"
 )
+
+var ErrBeingEvaluated = errors.New("still being checked by github")
 
 type merger struct {
 	Repo         *core.Repo
@@ -28,19 +31,29 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 			}
 			merger := merger{Repo: repo, PullRequests: gh(cCtx.Context).PullRequests()}
 			ancestors := pr.AllAncestors()
+			if len(ancestors) >= 1 {
+				fmt.Printf("%s is not mergeable because it has unmerged dependent PRs.\n", pr.Url())
+				return fmt.Errorf("please merge %s first", ancestors[0].LocalBranch())
+			}
+			fmt.Print("Checking mergeability... ")
+			mergeableContext, cancel := context.WithTimeoutCause(
+				cCtx.Context, core.GetGithubTimeout(),
+				fmt.Errorf("merging too slow, increase github.timeout"),
+			)
+			isMergeable, err := merger.IsMergeable(mergeableContext, pr)
+			cancel()
+			if errors.Is(err, ErrBeingEvaluated) {
+				isMergeable, err = merger.WaitForMergeability(cCtx.Context, pr)
+			}
+			if !isMergeable {
+				PrintFailure(nil)
+				return cli.Exit(err, 1)
+			}
 			mergeContext, cancel := context.WithTimeoutCause(
 				cCtx.Context, core.GetGithubTimeout(),
 				fmt.Errorf("merging too slow, increase github.timeout"),
 			)
 			defer cancel()
-			if len(ancestors) >= 1 {
-				fmt.Printf("%s is not mergeable because it has unmerged dependent PRs.\n", pr.Url())
-				return fmt.Errorf("please merge %s first", ancestors[0].LocalBranch())
-			}
-			isMergeable, err := merger.IsMergeable(mergeContext, pr)
-			if !isMergeable {
-				return cli.Exit(err, 1)
-			}
 			if err := merger.Merge(mergeContext, pr); err != nil {
 				return cli.Exit("could not merge", 1)
 			}
@@ -64,7 +77,7 @@ func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr) (bool, error
 		return false, errors.New("already merged")
 	}
 	if githubPr.Mergeable == nil {
-		return false, errors.New("still being checked by github")
+		return false, ErrBeingEvaluated
 	}
 	switch *githubPr.MergeableState {
 	case "dirty":
@@ -80,6 +93,26 @@ func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr) (bool, error
 	default:
 		return false, errors.New("not mergeable")
 	}
+}
+
+func (m *merger) WaitForMergeability(ctx context.Context, pr *core.LocalPr) (bool, error) {
+	t := time.NewTicker(time.Second * 2)
+	tenSeconds, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer t.Stop()
+	defer cancel()
+	for i := 0; i < 5; i++ {
+		select {
+		case <-t.C:
+			// Try again
+		case <-ctx.Done():
+			return false, ErrBeingEvaluated
+		}
+		mergeable, err := m.IsMergeable(tenSeconds, pr)
+		if mergeable || err != ErrBeingEvaluated {
+			return mergeable, err
+		}
+	}
+	return false, ErrBeingEvaluated
 }
 
 func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
