@@ -39,12 +39,9 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				return fmt.Errorf("please merge %s first", ancestors[0].LocalBranch())
 			}
 			fmt.Print("Checking mergeability... ")
-			mergeableContext, cancel := context.WithTimeoutCause(
-				cCtx.Context, core.GetGithubTimeout(),
-				fmt.Errorf("merging too slow, increase github.timeout"),
-			)
-			isMergeable, err := merger.IsMergeable(mergeableContext, pr)
-			cancel()
+
+			isMergeable, err := merger.IsMergeable(cCtx.Context, pr)
+
 			if errors.Is(err, ErrBeingEvaluated) {
 				isMergeable, err = merger.WaitForMergeability(cCtx.Context, pr)
 			}
@@ -73,7 +70,12 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 
 // Is this PR, separately from its ancestor, mergeable in itself ?
 func (m *merger) IsMergeable(ctx context.Context, pr *core.LocalPr) (bool, error) {
-	githubPr, _, err := m.PullRequests.Get(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
+	mergeableContext, cancel := context.WithTimeoutCause(
+		ctx, core.GetGithubTimeout(),
+		fmt.Errorf("checking if mergeable is too slow, increase github.timeout"),
+	)
+	defer cancel()
+	githubPr, _, err := m.PullRequests.Get(mergeableContext, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
 	if err != nil {
 		return false, err
 	}
