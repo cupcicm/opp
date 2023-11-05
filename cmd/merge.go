@@ -137,12 +137,11 @@ func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
 		PrintFailure("wrong remote tip")
 		return fmt.Errorf("did not merge %s", pr.LocalBranch())
 	}
-	if err == nil {
-		PrintSuccess()
-	} else {
+	if err != nil {
 		PrintFailure(err)
 		return err
 	}
+	PrintSuccess()
 	pr.AddKnownTip(plumbing.NewHash(merge.GetSHA()))
 	return nil
 }
