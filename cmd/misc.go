@@ -46,10 +46,10 @@ func PrFromStringOrCurrentBranch(repo *core.Repo, str string) (*core.LocalPr, bo
 				return nil, false, cli.Exit(fmt.Errorf("%s is not a PR", str), 1)
 			}
 			pr = core.NewLocalPr(repo, prNumber)
-			headPr, headIsPr := repo.PrForHead()
-			if headIsPr && headPr.PrNumber == pr.PrNumber {
-				currentBranch = true
-			}
+		}
+		headPr, headIsPr := repo.PrForHead()
+		if headIsPr && headPr.PrNumber == pr.PrNumber {
+			currentBranch = true
 		}
 	}
 	return pr, currentBranch, nil
