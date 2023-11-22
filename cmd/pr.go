@@ -75,6 +75,10 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			},
 		},
 		Action: func(cCtx *cli.Context) error {
+			initialRef, err := repo.Head()
+			if err != nil {
+				return err
+			}
 			pr := create{Repo: repo, Github: gh(cCtx.Context)}
 			args, err := pr.SanitizeArgs(cCtx)
 			if err != nil {
@@ -83,6 +87,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			if args.NeedsRebase {
 				newArgs, err := pr.RebasePrCommits(cCtx.Context, args)
 				if err != nil {
+					repo.CheckoutRef(initialRef)
 					return err
 				}
 				args = newArgs
@@ -95,7 +100,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			if args.CheckoutPr {
 				return repo.Checkout(localPr)
 			}
-			return nil
+			return repo.CheckoutRef(initialRef)
 		},
 	}
 
@@ -202,12 +207,15 @@ func HeadCommit(repo *core.Repo, args cli.Args) (plumbing.Hash, error) {
 // since HEAD will be detached after the rebase.
 func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args, error) {
 	// Careful ! The first commit is the child-most one, not the other way around.
+	err := c.Repo.DetachHead(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not detach head: %w", err)
+	}
 	if previousArgs.Interactive {
 		fmt.Println("Choose what commits you want to include in this PR")
 		if !c.Repo.TryRebaseOntoSilently(
 			ctx,
 			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
-			previousArgs.Commits[0].Hash,
 			previousArgs.AncestorBranch,
 			true,
 		) {
@@ -221,7 +229,6 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		if !c.Repo.TryRebaseOntoSilently(
 			ctx,
 			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
-			previousArgs.Commits[0].Hash,
 			previousArgs.AncestorBranch,
 			false,
 		) {
@@ -300,7 +307,14 @@ func (c *create) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor
 	c.Repo.Storer.SetReference(plumbing.NewHashReference(ref, hash))
 }
 
-func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (int, error) {
+func (c *create) create(
+	ctx context.Context,
+	hash plumbing.Hash,
+	ancestor core.Branch,
+	title string,
+	body string,
+	draft bool,
+) (int, error) {
 	for attempts := 0; attempts < 3; attempts++ {
 		pr, err := c.createOnce(ctx, hash, ancestor, title, body, draft)
 		if err == nil {
@@ -316,7 +330,14 @@ func (c *create) create(ctx context.Context, hash plumbing.Hash, ancestor core.B
 	return 0, ErrLostPrCreationRaceConditionMultipleTimes
 }
 
-func (c *create) createOnce(ctx context.Context, hash plumbing.Hash, ancestor core.Branch, title string, body string, draft bool) (int, error) {
+func (c *create) createOnce(
+	ctx context.Context,
+	hash plumbing.Hash,
+	ancestor core.Branch,
+	title string,
+	body string,
+	draft bool,
+) (int, error) {
 	ctx, cancel := context.WithTimeoutCause(
 		ctx, core.GetGithubTimeout(),
 		fmt.Errorf("creating PR too slow, increase github.timeout"),
