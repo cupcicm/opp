@@ -175,6 +175,18 @@ func (r *Repo) Checkout(branch Branch) error {
 	return cmd.Run()
 }
 
+func (r *Repo) CheckoutRef(ref *plumbing.Reference) error {
+	checkout := ref.Hash().String()
+	if ref.Name().IsBranch() {
+		checkout = ref.Name().Short()
+	}
+	cmd := r.GitExec(context.Background(), "checkout %s", checkout)
+	cmd.Stderr = nil
+	cmd.Stdout = nil
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
 func (r *Repo) GitExec(ctx context.Context, format string, args ...any) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, "bash", "-c", "git "+fmt.Sprintf(format, args...))
 	cmd.Dir = r.Path()
@@ -215,12 +227,12 @@ func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch
 	return false
 }
 
-func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, last plumbing.Hash, onto Branch, interactive bool) bool {
+func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, onto Branch, interactive bool) bool {
 	interactiveString := ""
 	if interactive {
 		interactiveString = "--interactive"
 	}
-	cmd := r.GitExec(ctx, "rebase %s --onto %s/%s %s^ %s", interactiveString, GetRemoteName(), onto.RemoteName(), first.String(), last.String())
+	cmd := r.GitExec(ctx, "rebase %s --onto %s/%s %s^", interactiveString, GetRemoteName(), onto.RemoteName(), first.String())
 	err := cmd.Run()
 	if err == nil {
 		return true
@@ -376,5 +388,10 @@ func (r *Repo) DeleteRemoteBranch(ctx context.Context, branch Branch) error {
 	)
 	defer cancel()
 	cmd := r.GitExec(ctx, "push %s :%s", GetRemoteName(), branch.RemoteName())
+	return cmd.Run()
+}
+
+func (r *Repo) DetachHead(ctx context.Context) error {
+	cmd := r.GitExec(ctx, "checkout --detach HEAD")
 	return cmd.Run()
 }
