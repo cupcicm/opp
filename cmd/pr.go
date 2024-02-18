@@ -92,11 +92,25 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 				}
 				args = newArgs
 			}
-
 			localPr, err := pr.Create(cCtx.Context, args)
 			if err != nil {
 				return err
 			}
+			if core.GetCleanMaster() && !args.Detached {
+				// We need to remove the commits we used to make the PR from the branch
+				// we were on before.
+				err := repo.Checkout(args.InitialBranch)
+				if err != nil {
+					return err
+				}
+				if !repo.TryRebaseCurrentBranchSilently(cCtx.Context, localPr) {
+					return fmt.Errorf("problem while rebasing %s on %s\n", args.InitialBranch.LocalName(), localPr.LocalName())
+				}
+				if !repo.TryLocalRebaseOntoSilently(cCtx.Context, args.Commits[0].Hash, args.Commits[len(args.Commits)-1].Hash) {
+					return fmt.Errorf("problem while removing PR commits from %s\n", args.InitialBranch.LocalName())
+				}
+			}
+
 			if args.CheckoutPr {
 				return repo.Checkout(localPr)
 			}
@@ -119,13 +133,17 @@ type args struct {
 	CheckoutPr     bool
 	Interactive    bool
 	DraftPr        bool
+	Detached       bool
+	InitialBranch  core.Branch
 }
 
 func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 	forHead := cCtx.Args().Present()
-	var overrideAncestorBranch core.Branch = nil
-	needsRebase := false
-	headCommit, err := HeadCommit(c.Repo, cCtx.Args())
+	var (
+		overrideAncestorBranch core.Branch
+		needsRebase            = false
+		headCommit, err        = HeadCommit(c.Repo, cCtx.Args())
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +185,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 	}
 	shouldCheckout := cCtx.Bool("checkout")
 	head := core.Must(c.Repo.Head())
+
 	if !head.Name().IsBranch() {
 		shouldCheckout = true
 	}
@@ -176,6 +195,12 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		CheckoutPr:  shouldCheckout,
 		Interactive: cCtx.Bool("interactive"),
 		DraftPr:     cCtx.Bool("draft"),
+	}
+	if head.Name().IsBranch() {
+		args.Detached = false
+		args.InitialBranch = core.NewBranch(c.Repo, head.Name().Short())
+	} else {
+		args.Detached = true
 	}
 	if overrideAncestor != "" {
 		args.AncestorBranch = overrideAncestorBranch
@@ -260,6 +285,8 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 	return &args{
 		AncestorBranch: ancestor,
 		Commits:        commits,
+		Detached:       previousArgs.Detached,
+		InitialBranch:  previousArgs.InitialBranch,
 		NeedsRebase:    false,
 		CheckoutPr:     true,
 	}, nil
