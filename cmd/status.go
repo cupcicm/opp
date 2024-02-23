@@ -100,7 +100,7 @@ func (s *status) isMergeable(ctx context.Context, pr *core.LocalPr) (bool, error
 	case "blocked":
 		return false, errors.New("not authorized to merge")
 	case "unstable":
-		return false, errors.New("has some failing checks")
+		return false, errors.New("has some failing or pending checks")
 	case "draft":
 		return false, errors.New("draft PR")
 	case "clean":
