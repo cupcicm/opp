@@ -197,6 +197,10 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		DraftPr:     cCtx.Bool("draft"),
 	}
 	if head.Name().IsBranch() {
+		if localChanges && core.GetCleanMaster() {
+			return nil, cli.Exit("moving commits to the pr branch will fail: you have unstashed changes. Please stash them or unset keep_master_clean config", 1)
+		}
+
 		args.Detached = false
 		args.InitialBranch = core.NewBranch(c.Repo, head.Name().Short())
 	} else {
