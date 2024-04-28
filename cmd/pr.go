@@ -32,8 +32,13 @@ checkout the PR branch.
 There are some cases where opp pr still checkouts the PR branch after creation: when you
 specified a different base for example.
 `)
-	DraftFlagUsage = "Create a draft PR."
-	Description    = strings.TrimSpace(`
+	DraftFlagUsage   = "Create a draft PR."
+	ExtractFlagUsage = strings.TrimSpace(`
+When set, tries to extract the commits used to create the PR from the current branch. 
+This means that the current branch will not retain the commits you used to create the PR, they
+will be "moved" to the PR branch, and will not stay in your main branch.
+`)
+	Description = strings.TrimSpace(`
 Starting from either HEAD, or the provided reference (HEAD~1, a74c9e, a_branch, ...) and walking
 back, gathers commits until it finds either the tip of a PR branch (e.g. pr/xxx) or the base branch
 and creates a PR that contains these commits.
@@ -73,6 +78,11 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 				Aliases: []string{"d"},
 				Usage:   DraftFlagUsage,
 			},
+			&cli.BoolFlag{
+				Name:    "extract",
+				Aliases: []string{"x"},
+				Usage:   ExtractFlagUsage,
+			},
 		},
 		Action: func(cCtx *cli.Context) error {
 			initialRef, err := repo.Head()
@@ -96,7 +106,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			if err != nil {
 				return err
 			}
-			if core.GetCleanMaster() && !args.Detached {
+			if args.Extract && !args.Detached {
 				// We need to remove the commits we used to make the PR from the branch
 				// we were on before.
 				err := repo.Checkout(args.InitialBranch)
@@ -107,7 +117,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 					return fmt.Errorf("problem while rebasing %s on %s\n", args.InitialBranch.LocalName(), localPr.LocalName())
 				}
 				if !repo.TryLocalRebaseOntoSilently(cCtx.Context, args.Commits[0].Hash, args.Commits[len(args.Commits)-1].Hash) {
-					return fmt.Errorf("problem while removing PR commits from %s\n", args.InitialBranch.LocalName())
+					return fmt.Errorf("problem while extracting PR commits from %s\n", args.InitialBranch.LocalName())
 				}
 			}
 
@@ -135,6 +145,7 @@ type args struct {
 	DraftPr        bool
 	Detached       bool
 	InitialBranch  core.Branch
+	Extract        bool
 }
 
 func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
@@ -149,6 +160,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 	}
 	overrideAncestor := cCtx.String("base")
 	localChanges := !c.Repo.NoLocalChanges(cCtx.Context)
+	extract := cCtx.Bool("extract")
 	if overrideAncestor != "" {
 		overrideAncestorBranch, err = c.Repo.GetBranch(overrideAncestor)
 		needsRebase = true
@@ -170,6 +182,9 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 			// If the user wants to checkout the PR at the end, it's OK but it needs to be a PR that will end
 			// up exactly with the same HEAD as before.
 			return nil, cli.Exit("Cannot checkout the PR since there are local changes. Please stash them", 1)
+		}
+		if extract {
+			return nil, cli.Exit("You have provided --extract but have local changes, please stash them", 1)
 		}
 	}
 	ancestor, commits, err := c.Repo.FindBranchingPoint(headCommit)
@@ -195,6 +210,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		CheckoutPr:  shouldCheckout,
 		Interactive: cCtx.Bool("interactive"),
 		DraftPr:     cCtx.Bool("draft"),
+		Extract:     extract,
 	}
 	if head.Name().IsBranch() {
 		args.Detached = false
@@ -289,6 +305,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		InitialBranch:  previousArgs.InitialBranch,
 		NeedsRebase:    false,
 		CheckoutPr:     true,
+		Extract:        previousArgs.Extract,
 	}, nil
 }
 
