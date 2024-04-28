@@ -53,7 +53,3 @@ func GetGithubMergeMethod() string {
 func GetGithubTimeout() time.Duration {
 	return viper.GetDuration("github.timeout")
 }
-
-func GetCleanMaster() bool {
-	return viper.GetBool("opp.keep_master_clean")
-}
