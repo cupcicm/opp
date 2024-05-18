@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -18,7 +20,13 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 			repo.Fetch(cCtx.Context)
 			localPrs := repo.AllPrs(cCtx.Context)
 
-			clean := func(pr core.LocalPr) error {
+			type cleanResult struct {
+				err error
+				pr  core.LocalPr
+			}
+
+			cleanPr := func(wg *sync.WaitGroup, out chan cleanResult, pr core.LocalPr) {
+				defer wg.Done()
 				pullRequests := gh(cCtx.Context).PullRequests()
 				_, err := repo.GetRemoteTip(&pr)
 				if errors.Is(err, plumbing.ErrReferenceNotFound) {
@@ -28,20 +36,38 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				} else {
 					githubPr, _, err := pullRequests.Get(cCtx.Context, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
 					if err != nil {
-						return err
+						out <- cleanResult{err, pr}
 					}
 					if *githubPr.State == "closed" {
 						repo.CleanupAfterMerge(cCtx.Context, &pr)
 					}
 				}
-				return nil
+				out <- cleanResult{nil, pr}
 			}
 
-			for _, pr := range localPrs {
-				if err := clean(pr); err != nil {
-					return err
+			cleaningPipeline := func() chan cleanResult {
+				results := make(chan cleanResult)
+				wg := &sync.WaitGroup{}
+
+				for _, pr := range localPrs {
+					wg.Add(1)
+					go cleanPr(wg, results, pr)
+				}
+
+				go func() {
+					wg.Wait()
+					close(results)
+				}()
+
+				return results
+			}
+
+			for result := range cleaningPipeline() {
+				if result.err != nil {
+					fmt.Printf("Issue when cleaning %d: %s", result.pr.PrNumber, result.err)
 				}
 			}
+
 			return nil
 		},
 	}
