@@ -17,7 +17,8 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 		Action: func(cCtx *cli.Context) error {
 			repo.Fetch(cCtx.Context)
 			localPrs := repo.AllPrs(cCtx.Context)
-			for _, pr := range localPrs {
+
+			clean := func(pr core.LocalPr) error {
 				pullRequests := gh(cCtx.Context).PullRequests()
 				_, err := repo.GetRemoteTip(&pr)
 				if errors.Is(err, plumbing.ErrReferenceNotFound) {
@@ -32,6 +33,13 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 					if *githubPr.State == "closed" {
 						repo.CleanupAfterMerge(cCtx.Context, &pr)
 					}
+				}
+				return nil
+			}
+
+			for _, pr := range localPrs {
+				if err := clean(pr); err != nil {
+					return err
 				}
 			}
 			return nil
