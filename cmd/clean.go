@@ -19,6 +19,7 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 		Action: func(cCtx *cli.Context) error {
 			repo.Fetch(cCtx.Context)
 			localPrs := repo.AllPrs(cCtx.Context)
+			pullRequests := gh(cCtx.Context).PullRequests()
 
 			type cleanResult struct {
 				err error
@@ -31,7 +32,6 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 
 				cleanPr := func(pr core.LocalPr) {
 					defer wg.Done()
-					pullRequests := gh(cCtx.Context).PullRequests()
 					_, err := repo.GetRemoteTip(&pr)
 					if errors.Is(err, plumbing.ErrReferenceNotFound) {
 						// The remote tip does not exist anymore : it has been deleted on the github repo.
