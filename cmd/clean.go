@@ -25,33 +25,33 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				pr  core.LocalPr
 			}
 
-			cleanPr := func(wg *sync.WaitGroup, out chan cleanResult, pr core.LocalPr) {
-				defer wg.Done()
-				pullRequests := gh(cCtx.Context).PullRequests()
-				_, err := repo.GetRemoteTip(&pr)
-				if errors.Is(err, plumbing.ErrReferenceNotFound) {
-					// The remote tip does not exist anymore : it has been deleted on the github repo.
-					// Probably because the PR is either abandonned or merged.
-					repo.CleanupAfterMerge(cCtx.Context, &pr)
-				} else {
-					githubPr, _, err := pullRequests.Get(cCtx.Context, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
-					if err != nil {
-						out <- cleanResult{err, pr}
-					}
-					if *githubPr.State == "closed" {
-						repo.CleanupAfterMerge(cCtx.Context, &pr)
-					}
-				}
-				out <- cleanResult{nil, pr}
-			}
-
 			cleaningPipeline := func() chan cleanResult {
 				results := make(chan cleanResult)
 				wg := &sync.WaitGroup{}
 
+				cleanPr := func(pr core.LocalPr) {
+					defer wg.Done()
+					pullRequests := gh(cCtx.Context).PullRequests()
+					_, err := repo.GetRemoteTip(&pr)
+					if errors.Is(err, plumbing.ErrReferenceNotFound) {
+						// The remote tip does not exist anymore : it has been deleted on the github repo.
+						// Probably because the PR is either abandonned or merged.
+						repo.CleanupAfterMerge(cCtx.Context, &pr)
+					} else {
+						githubPr, _, err := pullRequests.Get(cCtx.Context, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
+						if err != nil {
+							results <- cleanResult{err, pr}
+						}
+						if *githubPr.State == "closed" {
+							repo.CleanupAfterMerge(cCtx.Context, &pr)
+						}
+					}
+					results <- cleanResult{nil, pr}
+				}
+
 				for _, pr := range localPrs {
 					wg.Add(1)
-					go cleanPr(wg, results, pr)
+					go cleanPr(pr)
 				}
 
 				go func() {
