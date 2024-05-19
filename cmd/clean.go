@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
+	"log"
+	"runtime"
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/sync/semaphore"
 )
 
 func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
@@ -26,12 +28,13 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				pr  core.LocalPr
 			}
 
-			cleaningPipeline := func() chan cleanResult {
+			cleaningPipeline := func(ctx context.Context) chan cleanResult {
 				results := make(chan cleanResult)
-				wg := &sync.WaitGroup{}
+				maxNumberOfGoroutines := int64(runtime.GOMAXPROCS(0))
+				sem := semaphore.NewWeighted(maxNumberOfGoroutines)
 
 				cleanPr := func(pr core.LocalPr) {
-					defer wg.Done()
+					defer sem.Release(1)
 					_, err := repo.GetRemoteTip(&pr)
 					if errors.Is(err, plumbing.ErrReferenceNotFound) {
 						// The remote tip does not exist anymore : it has been deleted on the github repo.
@@ -50,19 +53,24 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				}
 
 				for _, pr := range localPrs {
-					wg.Add(1)
+					if err := sem.Acquire(ctx, 1); err != nil {
+						results <- cleanResult{err, pr}
+						break
+					}
 					go cleanPr(pr)
 				}
 
 				go func() {
-					wg.Wait()
+					if err := sem.Acquire(ctx, maxNumberOfGoroutines); err != nil {
+						log.Panicf("Failed to acquire semaphore: %v", err)
+					}
 					close(results)
 				}()
 
 				return results
 			}
 
-			for result := range cleaningPipeline() {
+			for result := range cleaningPipeline(cCtx.Context) {
 				if result.err != nil {
 					fmt.Printf("Issue when cleaning %d: %s", result.pr.PrNumber, result.err)
 				}
