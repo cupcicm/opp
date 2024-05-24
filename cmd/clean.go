@@ -28,6 +28,9 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				pr  core.LocalPr
 			}
 
+			ctx, cancel := context.WithCancel(cCtx.Context)
+			defer cancel()
+
 			cleaningPipeline := func(ctx context.Context) (chan cleanResult, error) {
 				results := make(chan cleanResult)
 				maxNumberOfGoroutines := int64(runtime.GOMAXPROCS(0))
@@ -39,17 +42,26 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 					if errors.Is(err, plumbing.ErrReferenceNotFound) {
 						// The remote tip does not exist anymore : it has been deleted on the github repo.
 						// Probably because the PR is either abandonned or merged.
-						repo.CleanupAfterMerge(cCtx.Context, &pr)
+						repo.CleanupAfterMerge(ctx, &pr)
 					} else {
-						githubPr, _, err := pullRequests.Get(cCtx.Context, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
+						githubPr, _, err := pullRequests.Get(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
 						if err != nil {
-							results <- cleanResult{err, pr}
+							select {
+							case results <- cleanResult{err, pr}:
+							case <-ctx.Done():
+								return
+							}
+
 						}
 						if *githubPr.State == "closed" {
-							repo.CleanupAfterMerge(cCtx.Context, &pr)
+							repo.CleanupAfterMerge(ctx, &pr)
 						}
 					}
-					results <- cleanResult{nil, pr}
+					select {
+					case results <- cleanResult{nil, pr}:
+					case <-ctx.Done():
+						return
+					}
 				}
 
 				for _, pr := range localPrs {
@@ -68,9 +80,10 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				}()
 
 				return results, nil
+
 			}
 
-			results, err := cleaningPipeline(cCtx.Context)
+			results, err := cleaningPipeline(ctx)
 			if err != nil {
 				return err
 			}
