@@ -28,7 +28,7 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				pr  core.LocalPr
 			}
 
-			cleaningPipeline := func(ctx context.Context) chan cleanResult {
+			cleaningPipeline := func(ctx context.Context) (chan cleanResult, error) {
 				results := make(chan cleanResult)
 				maxNumberOfGoroutines := int64(runtime.GOMAXPROCS(0))
 				sem := semaphore.NewWeighted(maxNumberOfGoroutines)
@@ -54,23 +54,28 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 
 				for _, pr := range localPrs {
 					if err := sem.Acquire(ctx, 1); err != nil {
-						results <- cleanResult{err, pr}
-						break
+						return nil, err
 					}
 					go cleanPr(pr)
 				}
 
 				go func() {
-					if err := sem.Acquire(ctx, maxNumberOfGoroutines); err != nil {
-						log.Panicf("Failed to acquire semaphore: %v", err)
+					err := sem.Acquire(ctx, maxNumberOfGoroutines)
+					if err != nil && ctx.Err() == nil {
+						log.Panicf("What is the error if not the context error? Error: %s.", err)
 					}
 					close(results)
 				}()
 
-				return results
+				return results, nil
 			}
 
-			for result := range cleaningPipeline(cCtx.Context) {
+			results, err := cleaningPipeline(cCtx.Context)
+			if err != nil {
+				return err
+			}
+
+			for result := range results {
 				if result.err != nil {
 					fmt.Printf("Issue when cleaning %d: %s", result.pr.PrNumber, result.err)
 				}
