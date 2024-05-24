@@ -23,79 +23,88 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 			localPrs := repo.AllPrs(cCtx.Context)
 			pullRequests := gh(cCtx.Context).PullRequests()
 
-			type cleanResult struct {
-				err error
-				pr  core.LocalPr
-			}
-
-			ctx, cancel := context.WithCancel(cCtx.Context)
-			defer cancel()
-
-			cleaningPipeline := func(ctx context.Context) (chan cleanResult, error) {
-				results := make(chan cleanResult)
-				maxNumberOfGoroutines := int64(runtime.GOMAXPROCS(0))
-				sem := semaphore.NewWeighted(maxNumberOfGoroutines)
-
-				cleanPr := func(pr core.LocalPr) {
-					defer sem.Release(1)
-					_, err := repo.GetRemoteTip(&pr)
-					if errors.Is(err, plumbing.ErrReferenceNotFound) {
-						// The remote tip does not exist anymore : it has been deleted on the github repo.
-						// Probably because the PR is either abandonned or merged.
-						repo.CleanupAfterMerge(ctx, &pr)
-					} else {
-						githubPr, _, err := pullRequests.Get(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
-						if err != nil {
-							select {
-							case results <- cleanResult{err, pr}:
-							case <-ctx.Done():
-								return
-							}
-
-						}
-						if *githubPr.State == "closed" {
-							repo.CleanupAfterMerge(ctx, &pr)
-						}
-					}
-					select {
-					case results <- cleanResult{nil, pr}:
-					case <-ctx.Done():
-						return
-					}
-				}
-
-				for _, pr := range localPrs {
-					if err := sem.Acquire(ctx, 1); err != nil {
-						return nil, err
-					}
-					go cleanPr(pr)
-				}
-
-				go func() {
-					err := sem.Acquire(ctx, maxNumberOfGoroutines)
-					if err != nil && ctx.Err() == nil {
-						log.Panicf("What is the error if not the context error? Error: %s.", err)
-					}
-					close(results)
-				}()
-
-				return results, nil
-
-			}
-
-			results, err := cleaningPipeline(ctx)
-			if err != nil {
-				return err
-			}
-
-			for result := range results {
-				if result.err != nil {
-					fmt.Printf("Issue when cleaning %d: %s", result.pr.PrNumber, result.err)
-				}
-			}
-
-			return nil
+			return cleaner{repo, localPrs, pullRequests}.Clean(cCtx.Context)
 		},
 	}
 	return cmd
+}
+
+type cleanResult struct {
+	err error
+	pr  core.LocalPr
+}
+
+type cleaner struct {
+	repo         *core.Repo
+	localPrs     []core.LocalPr
+	pullRequests core.GhPullRequest
+}
+
+func (c cleaner) Clean(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	results, err := c.cleaningPipeline(ctx)
+	if err != nil {
+		return err
+	}
+
+	for result := range results {
+		if result.err != nil {
+			fmt.Printf("Issue when cleaning %d: %s", result.pr.PrNumber, result.err)
+		}
+	}
+
+	return nil
+}
+
+func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error) {
+	results := make(chan cleanResult)
+	maxNumberOfGoroutines := int64(runtime.GOMAXPROCS(0))
+	sem := semaphore.NewWeighted(maxNumberOfGoroutines)
+
+	cleanPr := func(pr core.LocalPr) {
+		defer sem.Release(1)
+		_, err := c.repo.GetRemoteTip(&pr)
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			// The remote tip does not exist anymore : it has been deleted on the github repo.
+			// Probably because the PR is either abandonned or merged.
+			c.repo.CleanupAfterMerge(ctx, &pr)
+		} else {
+			githubPr, _, err := c.pullRequests.Get(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
+			if err != nil {
+				select {
+				case results <- cleanResult{err, pr}:
+				case <-ctx.Done():
+					return
+				}
+
+			}
+			if *githubPr.State == "closed" {
+				c.repo.CleanupAfterMerge(ctx, &pr)
+			}
+		}
+		select {
+		case results <- cleanResult{nil, pr}:
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	for _, pr := range c.localPrs {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			return nil, err
+		}
+		go cleanPr(pr)
+	}
+
+	go func() {
+		err := sem.Acquire(ctx, maxNumberOfGoroutines)
+		if err != nil && ctx.Err() == nil {
+			log.Panicf("What is the error if not the context error? Error: %s.", err)
+		}
+		close(results)
+	}()
+
+	return results, nil
 }
