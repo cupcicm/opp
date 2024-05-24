@@ -44,6 +44,7 @@ func (c cleaner) Clean(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// results channel will receive the results of each pr cleaning operation
 	results, err := c.cleaningPipeline(ctx)
 	if err != nil {
 		return err
@@ -53,6 +54,7 @@ func (c cleaner) Clean(ctx context.Context) error {
 		if result.err != nil {
 			fmt.Printf("Issue when cleaning %d: %s", result.pr.PrNumber, result.err)
 		}
+		// TODO: also Print here the output in case of success (instead of directly in CleanupAfterMerge)
 	}
 
 	return nil
@@ -60,6 +62,8 @@ func (c cleaner) Clean(ctx context.Context) error {
 
 func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error) {
 	results := make(chan cleanResult)
+
+	// The semaphore will be used to limit the number of goroutines that can be launched in parallel.
 	maxNumberOfGoroutines := int64(runtime.GOMAXPROCS(0))
 	sem := semaphore.NewWeighted(maxNumberOfGoroutines)
 
@@ -89,7 +93,6 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 				case <-ctx.Done():
 					return
 				}
-
 			}
 			if *githubPr.State == "closed" {
 				c.repo.CleanupAfterMerge(ctx, &pr)
