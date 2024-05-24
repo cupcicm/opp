@@ -63,6 +63,17 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 	maxNumberOfGoroutines := int64(runtime.GOMAXPROCS(0))
 	sem := semaphore.NewWeighted(maxNumberOfGoroutines)
 
+	// Wait for the semaphore to be fully released before closing the results channel.
+	defer func() {
+		go func() {
+			err := sem.Acquire(ctx, maxNumberOfGoroutines)
+			if err != nil && ctx.Err() == nil {
+				log.Panicf("What is the error if not the context error? Error: %s.", err)
+			}
+			close(results)
+		}()
+	}()
+
 	cleanPr := func(pr core.LocalPr) {
 		defer sem.Release(1)
 		_, err := c.repo.GetRemoteTip(&pr)
@@ -97,14 +108,6 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 		}
 		go cleanPr(pr)
 	}
-
-	go func() {
-		err := sem.Acquire(ctx, maxNumberOfGoroutines)
-		if err != nil && ctx.Err() == nil {
-			log.Panicf("What is the error if not the context error? Error: %s.", err)
-		}
-		close(results)
-	}()
 
 	return results, nil
 }
