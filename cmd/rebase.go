@@ -51,7 +51,9 @@ func rebase(ctx context.Context, repo *core.Repo, pr *core.LocalPr, first bool) 
 	_, err := repo.GetLocalTip(pr)
 	if err == plumbing.ErrReferenceNotFound {
 		// The branch has been merged and deleted.
-		repo.CleanupAfterMerge(ctx, pr)
+		if status := repo.CleanupAfterMerge(ctx, pr); status.Err != nil {
+			return true, fmt.Errorf("branch is merged and deleted but could not cleanup. Err: %w", status.Err)
+		}
 		return true, nil
 	}
 
@@ -104,7 +106,9 @@ func rebaseOnBaseBranch(
 	if core.Must(localPrTip.IsAncestor(remoteBaseBranchTip)) {
 		// PR has been merged : the local branch is now part
 		// of the history of the main branch.
-		repo.CleanupAfterMerge(ctx, pr)
+		if status := repo.CleanupAfterMerge(ctx, pr); status.Err != nil {
+			return true, fmt.Errorf("local branch is part of the history of the main branch but could not clean up. Err: %w", status.Err)
+		}
 		return true, nil
 	}
 	return false, nil

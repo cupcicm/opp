@@ -62,8 +62,8 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 			if mergingCurrentBranch {
 				repo.Checkout(repo.BaseBranch())
 			}
-			repo.CleanupAfterMerge(mergeContext, pr)
-			return nil
+			status := repo.CleanupAfterMerge(mergeContext, pr)
+			return status.Err
 		},
 	}
 	return cmd

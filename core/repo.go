@@ -363,17 +363,23 @@ func (r *Repo) GetRemoteTip(b Branch) (*object.Commit, error) {
 	return r.CommitObject(ref.Hash())
 }
 
-func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
-	tip, err := r.GetLocalTip(pr)
-	if err != nil {
-		fmt.Printf("could not find the tip of branch %s.\n", pr.LocalBranch())
-		return
-	}
-	fmt.Printf("Removing local branch %s. Tip was %s\n", pr.LocalBranch(), tip.Hash.String()[0:7])
-	r.CleanupMultiple(ctx, []*LocalPr{pr}, r.AllPrs(ctx))
+type CleanupAfterMergeStatus struct {
+	Branch string
+	Tip    *object.Commit
+	Err    error
 }
 
-func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others []LocalPr) {
+func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) CleanupAfterMergeStatus {
+	tip, err := r.GetLocalTip(pr)
+	if err != nil {
+		return CleanupAfterMergeStatus{pr.LocalBranch(), nil, errors.New("could not find the tip of branch")}
+	}
+	status := r.CleanupMultiple(ctx, []*LocalPr{pr}, r.AllPrs(ctx))
+	return CleanupAfterMergeStatus{pr.LocalBranch(), tip, status[pr]}
+}
+
+func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others []LocalPr) map[*LocalPr]error {
+	status := map[*LocalPr]error{}
 	for _, possibleDependentPR := range others {
 		ancestor, _ := possibleDependentPR.GetAncestor()
 		for _, deleting := range toclean {
@@ -386,10 +392,17 @@ func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others [
 			}
 		}
 	}
+
 	for _, deleting := range toclean {
-		r.DeleteLocalAndRemoteBranch(ctx, deleting)
+		if err := r.DeleteLocalAndRemoteBranch(ctx, deleting); err != nil {
+			status[deleting] = err
+			continue
+		}
 		deleting.DeleteState()
+		status[deleting] = nil
 	}
+
+	return status
 }
 
 func (r *Repo) DeleteLocalAndRemoteBranch(ctx context.Context, branch Branch) error {
