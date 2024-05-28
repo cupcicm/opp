@@ -91,8 +91,8 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 				select {
 				case results <- cleanResult{err, pr}:
 				case <-ctx.Done():
-					return
 				}
+				return
 			}
 			if *githubPr.State == "closed" {
 				c.repo.CleanupAfterMerge(ctx, &pr)
@@ -101,7 +101,6 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 		select {
 		case results <- cleanResult{nil, pr}:
 		case <-ctx.Done():
-			return
 		}
 	}
 
