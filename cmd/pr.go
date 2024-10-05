@@ -89,7 +89,11 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			if err != nil {
 				return err
 			}
-			pr := create{Repo: repo, Github: gh(cCtx.Context)}
+			storyService, err := core.NewStoryService()
+			if err != nil {
+				return err
+			}
+			pr := create{Repo: repo, Github: gh(cCtx.Context), StoryService: storyService}
 			args, err := pr.SanitizeArgs(cCtx)
 			if err != nil {
 				return err
@@ -134,6 +138,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 type create struct {
 	Repo   *core.Repo
 	Github core.Gh
+	StoryService core.StoryService
 }
 
 type args struct {
@@ -332,11 +337,34 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 }
 
 func (c *create) GetBodyAndTitle(commits []*object.Commit) (string, string) {
+	rawTitle, body := c.getRawBodyAndTitle(commits)
+	return c.addStory(commits, rawTitle), body
+}
+
+func (c *create) getRawBodyAndTitle(commits []*object.Commit) (string, string) {
 	sort.Slice(commits, func(i, j int) bool {
 		return len(commits[i].Message) > len(commits[j].Message)
 	})
 	title, body, _ := strings.Cut(strings.TrimSpace(commits[0].Message), "\n")
 	return strings.TrimSpace(title), strings.TrimSpace(body)
+}
+
+func (c *create) addStory(commits []*object.Commit, title string) string {
+	if c.StoryService.StoryInString(title) {
+		return title
+	}
+
+	commitMessages := make([]string, len(commits))
+	for i, c := range commits {
+		commitMessages[i] = c.Message
+	}
+
+	story, found := c.StoryService.ExtractFromCommitMessages(commitMessages)
+	if !found {
+		return title
+	}
+
+	return strings.Join([]string{story, title}, " ")
 }
 
 func (c *create) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor core.Branch) {
