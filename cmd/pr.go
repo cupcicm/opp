@@ -89,7 +89,11 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			if err != nil {
 				return err
 			}
-			pr := create{Repo: repo, Github: gh(cCtx.Context)}
+			storyService, err := core.NewStoryService()
+			if err != nil {
+				return err
+			}
+			pr := create{Repo: repo, Github: gh(cCtx.Context), StoryService: storyService}
 			args, err := pr.SanitizeArgs(cCtx)
 			if err != nil {
 				return err
@@ -132,8 +136,9 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 }
 
 type create struct {
-	Repo   *core.Repo
-	Github core.Gh
+	Repo         *core.Repo
+	Github       core.Gh
+	StoryService *core.StoryService
 }
 
 type args struct {
@@ -332,6 +337,15 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 }
 
 func (c *create) GetBodyAndTitle(commits []*object.Commit) (string, string) {
+	rawTitle, body := c.getRawBodyAndTitle(commits)
+	commitMessages := make([]string, len(commits))
+	for i, c := range commits {
+		commitMessages[i] = c.Message
+	}
+	return c.StoryService.AddToRawTitle(commitMessages, rawTitle), body
+}
+
+func (c *create) getRawBodyAndTitle(commits []*object.Commit) (string, string) {
 	sort.Slice(commits, func(i, j int) bool {
 		return len(commits[i].Message) > len(commits[j].Message)
 	})
