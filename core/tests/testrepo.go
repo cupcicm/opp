@@ -144,6 +144,12 @@ func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int, args ...stri
 	return r.AssertHasPr(t, prNumber)
 }
 
+func (r *TestRepo) CreatePrAssertPrDetails(t *testing.T, ref string, prNumber int, prDetails github.NewPullRequest, args ...string) *core.LocalPr {
+	pr := r.CreatePr(t, ref, prNumber, args...)
+	r.GithubMock.PullRequestsMock.AssertCalled(t, "Create", mock.Anything, "cupcicm", "opp", &prDetails)
+	return pr
+}
+
 func (r *TestRepo) MergePr(t *testing.T, pr *core.LocalPr) error {
 	tip := core.Must(r.GetLocalTip(pr))
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(pr.PrNumber, true)
