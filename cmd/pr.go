@@ -337,12 +337,12 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 }
 
 func (c *create) GetBodyAndTitle(commits []*object.Commit) (string, string) {
-	rawTitle, body := c.getRawBodyAndTitle(commits)
+	rawTitle, rawBody := c.getRawBodyAndTitle(commits)
 	commitMessages := make([]string, len(commits))
 	for i, c := range commits {
 		commitMessages[i] = c.Message
 	}
-	return c.StoryService.AddToRawTitle(commitMessages, rawTitle), body
+	return c.StoryService.EnrichBodyAndTitle(commitMessages, rawTitle, rawBody)
 }
 
 func (c *create) getRawBodyAndTitle(commits []*object.Commit) (string, string) {
