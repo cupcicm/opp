@@ -22,17 +22,24 @@ type StoryService struct {
 	re *regexp.Regexp
 }
 
-func (s *StoryService) AddToRawTitle(commitMessages []string, rawTitle string) string {
-	if s.storyInString(rawTitle) {
-		return rawTitle
+func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string) {
+	story, title := s.getStoryAndEnrichTitle(commitMessages, rawTitle)
+	return title, s.enrichBody(rawBody, story)
+}
+
+func (s *StoryService) getStoryAndEnrichTitle(commitMessages []string, rawTitle string) (story, title string) {
+	story, found := s.storyFromString(rawTitle)
+
+	if found {
+		return story, rawTitle
 	}
 
-	story, found := s.extractFromCommitMessages(commitMessages)
-	if !found {
-		return rawTitle
+	story, found = s.extractFromCommitMessages(commitMessages)
+	if found {
+		return story, strings.Join([]string{story, rawTitle}, " ")
 	}
 
-	return strings.Join([]string{story, rawTitle}, " ")
+	return "", rawTitle
 }
 
 func (s *StoryService) extractFromCommitMessages(messages []string) (string, bool) {
@@ -50,6 +57,12 @@ func (s *StoryService) extractFromCommitMessages(messages []string) (string, boo
 	return "", false
 }
 
-func (s *StoryService) storyInString(str string) bool {
-	return s.re.MatchString(str)
+func (s *StoryService) storyFromString(str string) (string, bool) {
+	result := s.re.FindString(str)
+	return result, result != ""
+}
+
+func (s *StoryService) enrichBody(rawBody, _ string) string {
+	// TODO(claire.philippe): to implement
+	return rawBody
 }
