@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
-const (
-	storyPattern   = `\w+[-_]\d+`
-	storyLinkValue = "Story"
-)
+const storyPattern = `\w+[-_]\d+`
 
 var (
 	urlPatterns = map[string]string{
@@ -103,10 +103,10 @@ func (s *StoryService) enrichBody(rawBody, story string) (string, error) {
 	}
 
 	if rawBody == "" {
-		return link, nil
+		return fmt.Sprintf("- %s", link), nil
 	}
 
-	return strings.Join([]string{rawBody, link}, "\n\n"), nil
+	return strings.Join([]string{fmt.Sprintf("- %s", link), rawBody}, "\n\n"), nil
 }
 
 func (s *StoryService) formatBodyInPRTitle(story string) (string, error) {
@@ -114,8 +114,8 @@ func (s *StoryService) formatBodyInPRTitle(story string) (string, error) {
 	urlTemplate, ok := urlPatterns[tool]
 	if !ok {
 		availableTools := []string{}
-		for tool := range urlPatterns {
-			availableTools = append(availableTools, tool)
+		for availableTool := range urlPatterns {
+			availableTools = append(availableTools, availableTool)
 		}
 		return "", fmt.Errorf("tool set in config (%s) doesn't match possible values (%s)", tool, availableTools)
 	}
@@ -123,5 +123,5 @@ func (s *StoryService) formatBodyInPRTitle(story string) (string, error) {
 	baseUrl := GetStoryToolBaseUrl()
 	url := fmt.Sprintf(urlTemplate, baseUrl, story)
 
-	return fmt.Sprintf("[%s](%s)", storyLinkValue, url), nil
+	return fmt.Sprintf("%s [%s](%s)", cases.Title(language.Und).String(tool), story, url), nil
 }
