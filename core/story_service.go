@@ -6,9 +6,18 @@ import (
 	"strings"
 )
 
-const storyPattern = `\w+[-_]\d+`
+const (
+	storyPattern   = `\w+[-_]\d+`
+	storyLinkValue = "Story"
+)
 
-var storyPatternWithBrackets = fmt.Sprintf(`\[%s\]`, storyPattern)
+var (
+	urlPatterns = map[string]string{
+		"jira":   "https://%s/browse/%s",
+		"linear": "https://%s/issue/%s",
+	}
+	storyPatternWithBrackets = fmt.Sprintf(`\[%s\]`, storyPattern)
+)
 
 type StoryService struct {
 	re             *regexp.Regexp
@@ -32,9 +41,13 @@ func NewStoryService() (*StoryService, error) {
 	}, nil
 }
 
-func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string) {
+func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
 	story, title := s.getStoryAndEnrichTitle(commitMessages, rawTitle)
-	return title, s.enrichBody(rawBody, story)
+	body, err = s.enrichBody(rawBody, story)
+	if err != nil {
+		return "", "", err
+	}
+	return title, body, nil
 }
 
 func (s *StoryService) getStoryAndEnrichTitle(commitMessages []string, rawTitle string) (story, title string) {
@@ -79,7 +92,36 @@ func (s *StoryService) formatStoryInPRTitle(story string) string {
 	return fmt.Sprintf("[%s]", story)
 }
 
-func (s *StoryService) enrichBody(rawBody, _ string) string {
-	// TODO(claire.philippe): to implement
-	return rawBody
+func (s *StoryService) enrichBody(rawBody, story string) (string, error) {
+	if story == "" || !BodyEnrichmentEnabled() {
+		return rawBody, nil
+	}
+
+	link, err := s.formatBodyInPRTitle(story)
+	if err != nil {
+		return "", fmt.Errorf("could not enrich the body with the Story: %w", err)
+	}
+
+	if rawBody == "" {
+		return link, nil
+	}
+
+	return strings.Join([]string{rawBody, link}, "\n\n"), nil
+}
+
+func (s *StoryService) formatBodyInPRTitle(story string) (string, error) {
+	tool := GetStoryTool()
+	urlTemplate, ok := urlPatterns[tool]
+	if !ok {
+		availableTools := []string{}
+		for tool := range urlPatterns {
+			availableTools = append(availableTools, tool)
+		}
+		return "", fmt.Errorf("tool set in config (%s) doesn't match possible values (%s)", tool, availableTools)
+	}
+
+	baseUrl := GetStoryToolBaseUrl()
+	url := fmt.Sprintf(urlTemplate, baseUrl, story)
+
+	return fmt.Sprintf("[%s](%s)", storyLinkValue, url), nil
 }

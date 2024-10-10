@@ -318,7 +318,10 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 
 	// The first commit is the child-most one.
 	lastCommit := args.Commits[0].Hash
-	title, body := c.GetBodyAndTitle(args.Commits)
+	title, body, err := c.GetBodyAndTitle(args.Commits)
+	if err != nil {
+		return nil, fmt.Errorf("could not get the pull request body and title: %w", err)
+	}
 
 	pr, err := c.create(ctx, lastCommit, args.AncestorBranch, title, body, args.DraftPr)
 	if err != nil {
@@ -336,13 +339,17 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 	return localPr, err
 }
 
-func (c *create) GetBodyAndTitle(commits []*object.Commit) (string, string) {
+func (c *create) GetBodyAndTitle(commits []*object.Commit) (string, string, error) {
 	rawTitle, rawBody := c.getRawBodyAndTitle(commits)
 	commitMessages := make([]string, len(commits))
 	for i, c := range commits {
 		commitMessages[i] = c.Message
 	}
-	return c.StoryService.EnrichBodyAndTitle(commitMessages, rawTitle, rawBody)
+	title, body, err := c.StoryService.EnrichBodyAndTitle(commitMessages, rawTitle, rawBody)
+	if err != nil {
+		return "", "", fmt.Errorf("could not enrich the PR with the Story: %w", err)
+	}
+	return title, body, nil
 }
 
 func (c *create) getRawBodyAndTitle(commits []*object.Commit) (string, string) {
