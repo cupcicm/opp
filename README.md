@@ -32,6 +32,7 @@ You can create two separate PRs like this
 - push, pull and merge from the command line: `opp push` / `opp pull` / `opp merge`
 - easily create sets of dependant PRs: ask for review on PR 2 that depends on PR 1 being merged. Then `opp` will take care of merging them in the right order.
 - Don't write the PR description yourself. opp chooses the longest commit message in your commits and uses it as the description.
+- Extract Story from commit messages and add it to the PR title and body.
 
 # Questions / contributions
 
