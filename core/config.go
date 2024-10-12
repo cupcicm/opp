@@ -59,10 +59,18 @@ func BodyEnrichmentEnabled() bool {
 	return viper.GetBool("story.enrichbody")
 }
 
+func FetchStoriesEnabled() bool {
+	return viper.GetBool("story.fetch")
+}
+
 func GetStoryTool() string {
 	return viper.GetString("story.tool.name")
 }
 
 func GetStoryToolBaseUrl() string {
 	return viper.GetString("story.tool.baseurl")
+}
+
+func GetStoryToolToken() string {
+	return viper.GetString("story.tool.token")
 }
