@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -41,8 +42,8 @@ func NewStoryService() (*StoryService, error) {
 	}, nil
 }
 
-func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
-	story, title := s.getStoryAndEnrichTitle(commitMessages, rawTitle)
+func (s *StoryService) EnrichBodyAndTitle(ctx context.Context, commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
+	story, title := s.getStoryAndEnrichTitle(ctx, commitMessages, rawTitle)
 	body, err = s.enrichBody(rawBody, story)
 	if err != nil {
 		return "", "", err
@@ -50,19 +51,32 @@ func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, raw
 	return title, body, nil
 }
 
-func (s *StoryService) getStoryAndEnrichTitle(commitMessages []string, rawTitle string) (story, title string) {
+func (s *StoryService) getStoryAndEnrichTitle(ctx context.Context, commitMessages []string, rawTitle string) (story, title string) {
 	story, found := s.storyFromMessageOrTitle(rawTitle)
 
 	if found {
 		return story, rawTitle
 	}
 
-	story, found = s.extractFromCommitMessages(commitMessages)
+	story, found = s.getStory(ctx, commitMessages)
 	if found {
 		return story, strings.Join([]string{s.formatStoryInPRTitle(story), rawTitle}, " ")
 	}
 
 	return "", rawTitle
+}
+
+func (s *StoryService) getStory(ctx context.Context, messages []string) (story string, found bool) {
+	story, found = s.extractFromCommitMessages(messages)
+	if found {
+		return story, found
+	}
+
+	if FetchStoriesEnabled() {
+		return s.fetchStory(ctx)
+	}
+
+	return "", false
 }
 
 func (s *StoryService) extractFromCommitMessages(messages []string) (story string, found bool) {
@@ -86,6 +100,22 @@ func (s *StoryService) storyFromMessageOrTitle(str string) (string, bool) {
 
 func (s *StoryService) sanitizeStory(storyBracket string) string {
 	return s.re.FindString(storyBracket)
+}
+
+func (s *StoryService) fetchStory(ctx context.Context) (story string, found bool) {
+	stories, err := NewLinearStoryFetcher().FetchInProgressStories(ctx)
+	if err != nil {
+		return "", found
+	}
+	fmt.Println(stories)
+	return "", false
+	// if len(stories) == 0 {
+	// 	return "", false
+	// }
+	// story, selected = StorySelector{
+	// 	stories: stories,
+	// }.Run()
+	// return story, selected
 }
 
 func (s *StoryService) formatStoryInPRTitle(story string) string {

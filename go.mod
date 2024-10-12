@@ -1,8 +1,11 @@
 module github.com/cupcicm/opp
 
-go 1.21
+go 1.22.0
+
+toolchain go1.22.8
 
 require (
+	git.sr.ht/~emersion/gqlclient v0.0.0-20230820050442-8873fe0204b9
 	github.com/go-git/go-git/v5 v5.9.0
 	github.com/google/go-github/v56 v56.0.0
 	github.com/spf13/viper v1.17.0
@@ -10,7 +13,8 @@ require (
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/oauth2 v0.13.0
-	golang.org/x/sync v0.4.0
+	golang.org/x/sync v0.6.0
+	golang.org/x/text v0.14.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -55,8 +59,7 @@ require (
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/mod v0.13.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/sys v0.13.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
