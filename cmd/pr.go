@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/cupcicm/opp/core"
+	"github.com/cupcicm/opp/core/story"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -89,7 +90,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			if err != nil {
 				return err
 			}
-			storyService, err := core.NewStoryService()
+			storyService, err := story.NewStoryService()
 			if err != nil {
 				return err
 			}
@@ -138,7 +139,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 type create struct {
 	Repo         *core.Repo
 	Github       core.Gh
-	StoryService *core.StoryService
+	StoryService *story.StoryService
 }
 
 type args struct {
