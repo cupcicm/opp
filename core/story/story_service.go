@@ -1,10 +1,11 @@
-package core
+package story
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/cupcicm/opp/core"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -93,7 +94,7 @@ func (s *StoryService) formatStoryInPRTitle(story string) string {
 }
 
 func (s *StoryService) enrichBody(rawBody, story string) (string, error) {
-	if story == "" || !BodyEnrichmentEnabled() {
+	if story == "" || !core.BodyEnrichmentEnabled() {
 		return rawBody, nil
 	}
 
@@ -110,7 +111,7 @@ func (s *StoryService) enrichBody(rawBody, story string) (string, error) {
 }
 
 func (s *StoryService) formatBodyInPRTitle(story string) (string, error) {
-	tool := GetStoryTool()
+	tool := core.GetStoryTool()
 	urlTemplate, ok := urlPatterns[tool]
 	if !ok {
 		availableTools := []string{}
@@ -120,7 +121,7 @@ func (s *StoryService) formatBodyInPRTitle(story string) (string, error) {
 		return "", fmt.Errorf("tool set in config (%s) doesn't match possible values (%s)", tool, availableTools)
 	}
 
-	baseUrl := GetStoryToolBaseUrl()
+	baseUrl := core.GetStoryToolBaseUrl()
 	url := fmt.Sprintf(urlTemplate, baseUrl, story)
 
 	return fmt.Sprintf("%s [%s](%s)", cases.Title(language.Und).String(tool), story, url), nil
