@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/cupcicm/opp/core"
+	"github.com/cupcicm/opp/core/story"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/exp/slices"
@@ -24,6 +25,7 @@ func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core
 		Name:    "status",
 		Aliases: []string{"s"},
 		Action: func(cCtx *cli.Context) error {
+			story.Toto(cCtx.Context)
 			if cCtx.NArg() > 0 {
 				return cli.Exit("too many arguments", 1)
 			}
