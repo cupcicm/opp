@@ -58,12 +58,31 @@ func (s *StoryService) getStoryAndEnrichTitle(commitMessages []string, rawTitle 
 		return story, rawTitle
 	}
 
-	story, found = s.extractFromCommitMessages(commitMessages)
+	story, found = s.findStory(commitMessages)
 	if found {
 		return story, strings.Join([]string{s.formatStoryInPRTitle(story), rawTitle}, " ")
 	}
 
 	return "", rawTitle
+}
+
+func (s *StoryService) findStory(commitMessages []string) (story string, found bool) {
+	story, found = s.extractFromCommitMessages(commitMessages)
+	if found {
+		return story, true
+	}
+
+	story, found = s.fetchStory()
+	if found {
+		return story, true
+	}
+
+	return "", false
+}
+
+func (s *StoryService) fetchStory() (story string, found bool) {
+	// TODO(ClairePhi): implement
+	return "", false
 }
 
 func (s *StoryService) extractFromCommitMessages(messages []string) (story string, found bool) {
