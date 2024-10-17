@@ -11,6 +11,7 @@ func init() {
 	viper.SetDefault("github.merge.method", "rebase")
 	viper.SetDefault("github.timeout", 30*time.Second)
 	viper.SetDefault("story.enrichbody", false)
+	viper.SetDefault("story.fetch", false)
 }
 
 func GetGithubToken() string {
@@ -59,10 +60,18 @@ func BodyEnrichmentEnabled() bool {
 	return viper.GetBool("story.enrichbody")
 }
 
+func FetchStoriesEnabled() bool {
+	return viper.GetBool("story.fetch")
+}
+
 func GetStoryTool() string {
 	return viper.GetString("story.tool.name")
 }
 
 func GetStoryToolBaseUrl() string {
 	return viper.GetString("story.tool.baseurl")
+}
+
+func GetStoryToolToken() string {
+	return viper.GetString("story.tool.token")
 }
