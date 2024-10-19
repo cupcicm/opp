@@ -4,20 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path"
 	"strconv"
 	"strings"
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"golang.org/x/exp/slices"
-	"gopkg.in/yaml.v3"
 )
 
 type LocalPr struct {
 	PrNumber int
-	HasState bool
-	state    *state
+	state    *BranchState
 	Repo     *Repo
 }
 
@@ -33,56 +29,12 @@ type Branch interface {
 	RemoteName() string
 }
 
-type state struct {
-	Ancestor struct {
-		Name      string
-		KnownTips []string
-	}
-	KnownTips []string
-}
-
-func (b *LocalPr) StateFile() string {
-	return path.Join(b.Repo.DotOpDir(), "state", b.LocalBranch())
-}
-
-func (b *LocalPr) saveState() error {
-	content, err := yaml.Marshal(b.state)
-	if err != nil {
-		return err
-	}
-	os.MkdirAll(path.Dir(b.StateFile()), 0755)
-	return os.WriteFile(b.StateFile(), content, 0644)
-}
-
-func (b *LocalPr) loadState() {
-	hasState := FileExists(b.StateFile())
-	if hasState {
-		b.state = Must(loadState(b.StateFile()))
-	} else {
-		b.state = &state{}
-	}
-	b.HasState = true
-}
-
-func loadState(file string) (*state, error) {
-	content, err := os.ReadFile(file)
-	if err != nil {
-		return nil, err
-	}
-	state := state{}
-	err = yaml.Unmarshal(content, &state)
-	if err != nil {
-		return nil, err
-	}
-	return &state, nil
-}
-
 func (b *LocalPr) ReloadState() {
-	b.loadState()
+	b.state = b.Repo.StateStore().GetBranchState(b)
 }
 
 func (b *LocalPr) DeleteState() {
-	os.Remove(b.StateFile())
+	b.Repo.StateStore().DeleteBranchState(b)
 }
 
 func NewLocalPr(repo *Repo, prNumber int) *LocalPr {
@@ -90,8 +42,12 @@ func NewLocalPr(repo *Repo, prNumber int) *LocalPr {
 		Repo:     repo,
 		PrNumber: prNumber,
 	}
-	pr.loadState()
+	pr.state = repo.StateStore().GetBranchState(&pr)
 	return &pr
+}
+
+func (pr *LocalPr) StateIsLoaded() bool {
+	return pr.state != nil
 }
 
 func NewBranch(repo *Repo, name string) Branch {
@@ -160,17 +116,17 @@ func (b *LocalPr) RememberCurrentTip() {
 
 func (b *LocalPr) AddKnownTip(tip plumbing.Hash) {
 	b.state.KnownTips = append(b.state.KnownTips, tip.String())
-	b.saveState()
+	b.Repo.StateStore().SaveBranchState(b, b.state)
 }
 
 func (b *LocalPr) SetKnownTipsFromAncestor(ancestor *LocalPr) {
 	b.state.Ancestor.KnownTips = ancestor.state.KnownTips
-	b.saveState()
+	b.Repo.StateStore().SaveBranchState(b, b.state)
 }
 
 func (b *LocalPr) SetAncestor(branch Branch) {
 	b.state.Ancestor.Name = branch.LocalName()
-	b.saveState()
+	b.Repo.StateStore().SaveBranchState(b, b.state)
 }
 
 // Returns all ancestor but not itself.
@@ -236,35 +192,4 @@ func ExtractPrNumber(branchname string) (int, error) {
 		return 0, ErrNotAPrBranch
 	}
 	return number, nil
-}
-
-type PrStates struct {
-	Repo *Repo
-}
-
-func (s PrStates) StatesPath() string {
-	return path.Join(s.Repo.DotOpDir(), "state", "pr")
-}
-
-func (s PrStates) AllPrs(ctx context.Context) []LocalPr {
-	files := Must(os.ReadDir(s.StatesPath()))
-	prs := make([]LocalPr, 0, len(files))
-	toclean := make([]*LocalPr, 0)
-	for _, file := range files {
-		num, err := strconv.Atoi(file.Name())
-		if err != nil {
-			continue
-		}
-		pr := NewLocalPr(s.Repo, num)
-		// Check that the branch exists.
-		_, err = s.Repo.GetLocalTip(pr)
-		if err != nil {
-			// This PR does not exist locally: clean it.
-			toclean = append(toclean, pr)
-		} else {
-			prs = append(prs, *pr)
-		}
-	}
-	s.Repo.CleanupMultiple(ctx, toclean, prs)
-	return prs
 }

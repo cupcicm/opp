@@ -15,7 +15,7 @@ func TestCanCreatePR(t *testing.T) {
 
 	localPr := r.CreatePr(t, "HEAD^", 2)
 
-	assert.True(t, localPr.HasState)
+	assert.True(t, localPr.StateIsLoaded())
 	ancestor, err := localPr.GetAncestor()
 	if assert.Nil(t, err) {
 		assert.Equal(t, "master", ancestor.LocalName())
@@ -31,7 +31,7 @@ func TestCanCreatePRWhenNotOnBranch(t *testing.T) {
 
 	localPr := r.CreatePr(t, "HEAD", 2)
 
-	assert.True(t, localPr.HasState)
+	assert.True(t, localPr.StateIsLoaded())
 	ancestor, err := localPr.GetAncestor()
 	if assert.Nil(t, err) {
 		assert.Equal(t, "master", ancestor.LocalName())
@@ -51,7 +51,7 @@ func TestCanChangePrAncestor(t *testing.T) {
 	r.CreatePr(t, "HEAD^", 2)
 	rebasedOnMaster := r.CreatePr(t, "HEAD", 3, "--base", "master")
 
-	assert.True(t, rebasedOnMaster.HasState)
+	assert.True(t, rebasedOnMaster.StateIsLoaded())
 	ancestor, err := rebasedOnMaster.GetAncestor()
 	if assert.Nil(t, err) {
 		assert.Equal(t, "master", ancestor.LocalName())
@@ -68,7 +68,7 @@ func TestCanSetAncestor(t *testing.T) {
 	r.CreatePr(t, "HEAD^", 2)
 	rebasedOnMaster := r.CreatePr(t, "HEAD", 3, "--base", "2")
 
-	assert.True(t, rebasedOnMaster.HasState)
+	assert.True(t, rebasedOnMaster.StateIsLoaded())
 	ancestor, err := rebasedOnMaster.GetAncestor()
 	if assert.Nil(t, err) {
 		assert.Equal(t, "pr/2", ancestor.LocalName())

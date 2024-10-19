@@ -34,7 +34,7 @@ func TestRebaseCleansDependentBranches(t *testing.T) {
 
 	// Reload PR3 state.
 	pr3 = core.NewLocalPr(r.Repo, 3)
-	assert.True(t, pr3.HasState)
+	assert.True(t, pr3.StateIsLoaded())
 
 	assert.Equal(t, "master", core.Must(pr3.GetAncestor()).LocalName())
 }

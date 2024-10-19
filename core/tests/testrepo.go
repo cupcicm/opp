@@ -56,7 +56,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 	source := core.Must(git.PlainInit(sourcePath, false))
 	github := core.Must(git.PlainInit(destPath, true))
 
-	repo := core.Repo{Repository: source}
+	repo := core.NewRepoFromGitRepo(source)
 	mock := &GithubMock{
 		PullRequestsMock: &PullRequestsMock{},
 		IssuesMock:       &IssuesMock{},
@@ -65,14 +65,14 @@ func NewTestRepo(t *testing.T) *TestRepo {
 	testRepo := TestRepo{
 		Source:     source,
 		GithubRepo: github,
-		Repo:       &repo,
+		Repo:       repo,
 		Paths: Paths{
 			Source:      sourcePath,
 			Destination: destPath,
 		},
 		GithubMock: mock,
 		Out:        &out,
-		App: cmd.MakeApp(&out, &repo, func(context.Context) core.Gh {
+		App: cmd.MakeApp(&out, repo, func(context.Context) core.Gh {
 			return mock
 		}),
 	}
