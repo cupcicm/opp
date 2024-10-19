@@ -16,14 +16,14 @@ func TestCleanupDoesntCleanupOtherPrs(t *testing.T) {
 
 	r.DeleteRemoteBranch(context.Background(), pr2)
 	_, err := r.GetLocalTip(pr2)
-	assert.True(t, core.FileExists(pr2.StateFile()))
+	assert.True(t, core.FileExists(r.StateStore().StateBranchFile(pr2)))
 	assert.Nil(t, err)
 
 	assert.Nil(t, r.Run("clean"))
 
 	_, err = r.GetLocalTip(pr2)
 	assert.NotNil(t, err)
-	assert.False(t, core.FileExists(pr2.StateFile()))
+	assert.False(t, core.FileExists(r.StateStore().StateBranchFile(pr2)))
 }
 
 func TestCleanupCleansDependencies(t *testing.T) {
@@ -39,7 +39,7 @@ func TestCleanupCleansDependencies(t *testing.T) {
 
 	_, err := r.GetLocalTip(pr2)
 	assert.NotNil(t, err)
-	assert.False(t, core.FileExists(pr2.StateFile()))
+	assert.False(t, core.FileExists(r.StateStore().StateBranchFile(pr2)))
 	pr3.ReloadState()
 	ancestor, _ := pr3.GetAncestor()
 	assert.Equal(t, "master", ancestor.LocalName())

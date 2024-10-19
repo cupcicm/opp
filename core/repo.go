@@ -16,6 +16,7 @@ import (
 
 type Repo struct {
 	*git.Repository
+	s *StateStore
 }
 
 func Current() *Repo {
@@ -27,13 +28,23 @@ func Current() *Repo {
 	if err != nil {
 		panic("You are not inside a git repository")
 	}
-	return &Repo{
+	return NewRepoFromGitRepo(repo)
+}
+
+func NewRepoFromGitRepo(repo *git.Repository) *Repo {
+	r := &Repo{
 		Repository: repo,
 	}
+	r.s = NewStateStore(r)
+	return r
 }
 
 func (r *Repo) OppEnabled() bool {
 	return FileExists(r.Config())
+}
+
+func (r *Repo) StateStore() *StateStore {
+	return r.s
 }
 
 func (r *Repo) Worktree() *git.Worktree {
@@ -57,7 +68,23 @@ func (r *Repo) Config() string {
 }
 
 func (r *Repo) AllPrs(ctx context.Context) []LocalPr {
-	return PrStates{r}.AllPrs(ctx)
+	var prNumbers = r.StateStore().AllLocalPrNumbers(ctx)
+	var toclean []*LocalPr
+	var prs = make([]LocalPr, 0, len(prNumbers))
+
+	for _, prNum := range prNumbers {
+		pr := NewLocalPr(r, prNum)
+		// Check that the branch exists.
+		_, err := r.GetLocalTip(pr)
+		if err != nil {
+			// This PR does not exist locally: clean it.
+			toclean = append(toclean, pr)
+		} else {
+			prs = append(prs, *pr)
+		}
+	}
+	r.CleanupMultiple(ctx, toclean, prs)
+	return prs
 }
 
 func (r *Repo) Push(ctx context.Context, hash plumbing.Hash, branch string) error {
