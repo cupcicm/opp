@@ -1,7 +1,9 @@
 package tests
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/cupcicm/opp/cmd"
 	"github.com/cupcicm/opp/core"
+	"github.com/cupcicm/opp/core/story"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -28,12 +31,14 @@ type Paths struct {
 
 type TestRepo struct {
 	*core.Repo
-	Source     *git.Repository
-	GithubRepo *git.Repository
-	Paths      Paths
-	GithubMock *GithubMock
-	App        *cli.App
-	Out        *strings.Builder
+	Source           *git.Repository
+	GithubRepo       *git.Repository
+	Paths            Paths
+	GithubMock       *GithubMock
+	StoryFetcherMock *StoryFetcherMock
+	App              *cli.App
+	Out              *strings.Builder
+	In               *bytes.Buffer
 }
 
 func setConfig() {
@@ -41,8 +46,9 @@ func setConfig() {
 	viper.Set("repo.branch", "master")
 	viper.Set("repo.github", "cupcicm/opp")
 	viper.Set("repo.remote", "origin")
-	viper.Set("story.tool", "jira")
+	viper.Set("story.tool", "linear")
 	viper.Set("story.url", "https://my.base.url/browse")
+	viper.Set("story.token", "my token")
 }
 
 func NewTestRepo(t *testing.T) *TestRepo {
@@ -60,7 +66,9 @@ func NewTestRepo(t *testing.T) *TestRepo {
 		PullRequestsMock: &PullRequestsMock{},
 		IssuesMock:       &IssuesMock{},
 	}
+	storyFetcherMock := &StoryFetcherMock{}
 	var out strings.Builder
+	var in bytes.Buffer
 	testRepo := TestRepo{
 		Source:     source,
 		GithubRepo: github,
@@ -69,10 +77,14 @@ func NewTestRepo(t *testing.T) *TestRepo {
 			Source:      sourcePath,
 			Destination: destPath,
 		},
-		GithubMock: mock,
-		Out:        &out,
-		App: cmd.MakeApp(&out, repo, func(context.Context) core.Gh {
+		GithubMock:       mock,
+		StoryFetcherMock: storyFetcherMock,
+		Out:              &out,
+		In:               &in,
+		App: cmd.MakeApp(&out, &in, repo, func(context.Context) core.Gh {
 			return mock
+		}, func(string, string) story.StoryFetcher {
+			return storyFetcherMock
 		}),
 	}
 	testRepo.PrepareSource()
@@ -139,15 +151,28 @@ func (r *TestRepo) AssertHasPr(t *testing.T, n int) *core.LocalPr {
 }
 
 func (r *TestRepo) CreatePr(t *testing.T, ref string, prNumber int, args ...string) *core.LocalPr {
+	return r.CreatePrWithStories(t, ref, prNumber, []story.Story{}, false, "", args...)
+}
+
+func (r *TestRepo) CreatePrWithStories(t *testing.T, ref string, prNumber int, stories []story.Story, errStories bool, selectedStory string, args ...string) *core.LocalPr {
 	r.GithubMock.IssuesMock.CallListAndReturnPr(prNumber - 1)
 	r.GithubMock.PullRequestsMock.CallCreate(prNumber)
-
+	r.StoryFetcherMock.CallFetchInProgressStories(stories, errStories)
+	if !errStories && len(stories) > 0 {
+		r.In.Write([]byte(fmt.Sprintf("%s\n", selectedStory)))
+	}
 	r.Run("pr", append(args, ref)...)
 	return r.AssertHasPr(t, prNumber)
 }
 
 func (r *TestRepo) CreatePrAssertPrDetails(t *testing.T, ref string, prNumber int, prDetails github.NewPullRequest, args ...string) *core.LocalPr {
 	pr := r.CreatePr(t, ref, prNumber, args...)
+	r.GithubMock.PullRequestsMock.AssertCalled(t, "Create", mock.Anything, "cupcicm", "opp", &prDetails)
+	return pr
+}
+
+func (r *TestRepo) CreatePrAssertPrDetailsWithStories(t *testing.T, ref string, prNumber int, stories []story.Story, errStories bool, selectedStory string, prDetails github.NewPullRequest, args ...string) *core.LocalPr {
+	pr := r.CreatePrWithStories(t, ref, prNumber, stories, errStories, selectedStory, args...)
 	r.GithubMock.PullRequestsMock.AssertCalled(t, "Create", mock.Anything, "cupcicm", "opp", &prDetails)
 	return pr
 }
@@ -266,4 +291,22 @@ func (m *PullRequestsMock) CallMerge(prNumber int, tip string) {
 	m.On("Merge", mock.Anything, "cupcicm", "opp", prNumber, "", mock.Anything).Return(
 		&response, nil, nil,
 	).Once()
+}
+
+type StoryFetcherMock struct {
+	mock.Mock
+}
+
+func (s *StoryFetcherMock) FetchInProgressStories(ctx context.Context) ([]story.Story, error) {
+	args := s.Mock.Called(ctx)
+	return args.Get(0).([]story.Story), args.Error(1)
+}
+
+func (s *StoryFetcherMock) CallFetchInProgressStories(stories []story.Story, fetchError bool) {
+	var err error
+	if fetchError {
+		err = errors.New("Story fetch error")
+	}
+
+	s.On("FetchInProgressStories", mock.Anything).Return(stories, err).Once()
 }

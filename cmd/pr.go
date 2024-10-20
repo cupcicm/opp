@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -52,7 +53,7 @@ whether it reached the base branch or the tip of another PR first when walking b
 `)
 )
 
-func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
+func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, sf func(string, string) story.StoryFetcher) *cli.Command {
 	cmd := &cli.Command{
 		Name:        "pr",
 		Aliases:     []string{"pull-request", "new"},
@@ -90,11 +91,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			if err != nil {
 				return err
 			}
-			storyService, err := story.NewStoryService()
-			if err != nil {
-				return err
-			}
-			pr := create{Repo: repo, Github: gh(cCtx.Context), StoryService: storyService}
+			pr := create{Repo: repo, Github: gh(cCtx.Context), StoryFetcher: sf}
 			args, err := pr.SanitizeArgs(cCtx)
 			if err != nil {
 				return err
@@ -107,7 +104,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 				}
 				args = newArgs
 			}
-			localPr, err := pr.Create(cCtx.Context, args)
+			localPr, err := pr.Create(cCtx.Context, in, args)
 			if err != nil {
 				return err
 			}
@@ -139,7 +136,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 type create struct {
 	Repo         *core.Repo
 	Github       core.Gh
-	StoryService story.StoryService
+	StoryFetcher func(string, string) story.StoryFetcher
 }
 
 type args struct {
@@ -315,11 +312,11 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 	}, nil
 }
 
-func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) {
+func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.LocalPr, error) {
 
 	// The first commit is the child-most one.
 	lastCommit := args.Commits[0].Hash
-	title, body, err := c.GetBodyAndTitle(args.Commits)
+	title, body, err := c.GetBodyAndTitle(ctx, in, args.Commits)
 	if err != nil {
 		return nil, fmt.Errorf("could not get the pull request body and title: %w", err)
 	}
@@ -340,13 +337,14 @@ func (c *create) Create(ctx context.Context, args *args) (*core.LocalPr, error) 
 	return localPr, err
 }
 
-func (c *create) GetBodyAndTitle(commits []*object.Commit) (string, string, error) {
+func (c *create) GetBodyAndTitle(ctx context.Context, in io.Reader, commits []*object.Commit) (string, string, error) {
 	rawTitle, rawBody := c.getRawBodyAndTitle(commits)
 	commitMessages := make([]string, len(commits))
 	for i, c := range commits {
 		commitMessages[i] = c.Message
 	}
-	title, body, err := c.StoryService.EnrichBodyAndTitle(commitMessages, rawTitle, rawBody)
+	storyService := story.NewStoryService(c.StoryFetcher, in)
+	title, body, err := storyService.EnrichBodyAndTitle(ctx, commitMessages, rawTitle, rawBody)
 	if err != nil {
 		return "", "", fmt.Errorf("could not enrich the PR with the Story: %w", err)
 	}
