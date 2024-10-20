@@ -41,9 +41,8 @@ func setConfig() {
 	viper.Set("repo.branch", "master")
 	viper.Set("repo.github", "cupcicm/opp")
 	viper.Set("repo.remote", "origin")
-	viper.Set("story.enrichbody", true)
-	viper.Set("story.tool.name", "jira")
-	viper.Set("story.tool.baseurl", "my.base.url")
+	viper.Set("story.tool", "jira")
+	viper.Set("story.enrichbodybaseurl", "https://my.base.url/browse")
 }
 
 func NewTestRepo(t *testing.T) *TestRepo {
