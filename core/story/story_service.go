@@ -12,13 +12,7 @@ import (
 
 const storyPattern = `\w+[-_]\d+`
 
-var (
-	urlPatterns = map[string]string{
-		"jira":   "https://%s/browse/%s",
-		"linear": "https://%s/issue/%s",
-	}
-	storyPatternWithBrackets = fmt.Sprintf(`\[%s\]`, storyPattern)
-)
+var storyPatternWithBrackets = fmt.Sprintf(`\[%s\]`, storyPattern)
 
 type StoryService struct {
 	re             *regexp.Regexp
@@ -113,7 +107,7 @@ func (s *StoryService) formatStoryInPRTitle(story string) string {
 }
 
 func (s *StoryService) enrichBody(rawBody, story string) (string, error) {
-	if story == "" || !core.BodyEnrichmentEnabled() {
+	if story == "" || core.GetStoryToolBaseUrl() == "" {
 		return rawBody, nil
 	}
 
@@ -131,17 +125,9 @@ func (s *StoryService) enrichBody(rawBody, story string) (string, error) {
 
 func (s *StoryService) formatBodyInPRTitle(story string) (string, error) {
 	tool := core.GetStoryTool()
-	urlTemplate, ok := urlPatterns[tool]
-	if !ok {
-		availableTools := []string{}
-		for availableTool := range urlPatterns {
-			availableTools = append(availableTools, availableTool)
-		}
-		return "", fmt.Errorf("tool set in config (%s) doesn't match possible values (%s)", tool, availableTools)
-	}
-
 	baseUrl := core.GetStoryToolBaseUrl()
-	url := fmt.Sprintf(urlTemplate, baseUrl, story)
+
+	url := fmt.Sprintf("%s/%s", baseUrl, story)
 
 	return fmt.Sprintf("%s [%s](%s)", cases.Title(language.Und).String(tool), story, url), nil
 }
