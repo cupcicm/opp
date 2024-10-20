@@ -55,14 +55,10 @@ func GetGithubTimeout() time.Duration {
 	return viper.GetDuration("github.timeout")
 }
 
-func BodyEnrichmentEnabled() bool {
-	return viper.GetBool("story.enrichbody")
-}
-
 func GetStoryTool() string {
-	return viper.GetString("story.tool.name")
+	return viper.GetString("story.tool")
 }
 
 func GetStoryToolBaseUrl() string {
-	return viper.GetString("story.tool.baseurl")
+	return viper.GetString("story.enrichbodybaseurl")
 }
