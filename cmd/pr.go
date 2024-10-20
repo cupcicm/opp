@@ -35,7 +35,7 @@ specified a different base for example.
 `)
 	DraftFlagUsage   = "Create a draft PR."
 	ExtractFlagUsage = strings.TrimSpace(`
-When set, tries to extract the commits used to create the PR from the current branch. 
+When set, tries to extract the commits used to create the PR from the current branch.
 This means that the current branch will not retain the commits you used to create the PR, they
 will be "moved" to the PR branch, and will not stay in your main branch.
 `)
@@ -152,6 +152,7 @@ type args struct {
 	Detached       bool
 	InitialBranch  core.Branch
 	Extract        bool
+	BranchTag      string
 }
 
 func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {

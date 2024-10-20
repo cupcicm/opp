@@ -15,6 +15,7 @@ type BranchState struct {
 		KnownTips []string
 	}
 	KnownTips []string
+	Tag       string
 }
 
 type StateStore struct {
