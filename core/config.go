@@ -66,3 +66,7 @@ func GetStoryToolUrl() string {
 func EnrichPrBodyWithStoryEnabled() bool {
 	return viper.GetBool("story.enrich")
 }
+
+func GetStoryToolToken() string {
+	return viper.GetString("story.token")
+}

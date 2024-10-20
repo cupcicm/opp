@@ -10,10 +10,11 @@ import (
 	"strings"
 
 	"github.com/cupcicm/opp/core"
+	"github.com/cupcicm/opp/core/story"
 	"github.com/urfave/cli/v2"
 )
 
-func MakeApp(out io.Writer, repo *core.Repo, gh func(context.Context) core.Gh) *cli.App {
+func MakeApp(out io.Writer, in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, sf func(string, string) story.StoryFetcher) *cli.App {
 	return &cli.App{
 		Name:  "opp",
 		Usage: "Create, update and merge Github pull requests from the command line.",
@@ -21,7 +22,7 @@ func MakeApp(out io.Writer, repo *core.Repo, gh func(context.Context) core.Gh) *
 			InitCommand(repo),
 			CleanCommand(repo, gh),
 			CloseCommand(repo, gh),
-			PrCommand(repo, gh),
+			PrCommand(in, repo, gh, sf),
 			MergeCommand(repo, gh),
 			StatusCommand(out, repo, gh),
 			RebaseCommand(repo),

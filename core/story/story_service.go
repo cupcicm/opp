@@ -1,8 +1,13 @@
 package story
 
 import (
+	"bufio"
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/cupcicm/opp/core"
@@ -15,19 +20,20 @@ const storyPattern = `\w+[-_]\d+`
 var storyPatternWithBrackets = fmt.Sprintf(`\[%s\]`, storyPattern)
 
 type StoryService interface {
-	EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error)
+	EnrichBodyAndTitle(ctx context.Context, commitMessages []string, rawTitle, rawBody string) (title, body string, err error)
 }
 
-func NewStoryService() StoryService {
+func NewStoryService(storyFetcher func(string, string) StoryFetcher, in io.Reader) StoryService {
 	tool := core.GetStoryTool()
 	url := core.GetStoryToolUrl()
+	token := core.GetStoryToolToken()
 
-	if tool == "" && url == "" {
+	if tool == "" && url == "" && token == "" {
 		return &StoryServiceNoop{}
 	}
 
-	if tool == "" || url == "" {
-		panic("please fill in all fields for the Story in the config (story.tool and story.url)")
+	if tool == "" || url == "" || token == "" {
+		panic("please fill in all Story fields in the config (story.tool, story.url and story.token)")
 	}
 
 	re, err := regexp.Compile(storyPattern)
@@ -45,12 +51,14 @@ func NewStoryService() StoryService {
 		reWithBrackets: reWithBrackets,
 		tool:           tool,
 		url:            url,
+		storyFetcher:   storyFetcher(tool, token),
+		in:             in,
 	}
 }
 
 type StoryServiceNoop struct{}
 
-func (s *StoryServiceNoop) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
+func (s *StoryServiceNoop) EnrichBodyAndTitle(_ context.Context, _ []string, rawTitle, rawBody string) (title, body string, err error) {
 	return rawTitle, rawBody, nil
 }
 
@@ -59,10 +67,12 @@ type StoryServiceEnabled struct {
 	reWithBrackets *regexp.Regexp
 	tool           string
 	url            string
+	storyFetcher   StoryFetcher
+	in             io.Reader
 }
 
-func (s *StoryServiceEnabled) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
-	story, title := s.getStoryAndEnrichTitle(commitMessages, rawTitle)
+func (s *StoryServiceEnabled) EnrichBodyAndTitle(ctx context.Context, commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
+	story, title := s.getStoryAndEnrichTitle(ctx, s.in, commitMessages, rawTitle)
 	body, err = s.enrichBody(rawBody, story)
 	if err != nil {
 		return "", "", err
@@ -70,14 +80,14 @@ func (s *StoryServiceEnabled) EnrichBodyAndTitle(commitMessages []string, rawTit
 	return title, body, nil
 }
 
-func (s *StoryServiceEnabled) getStoryAndEnrichTitle(commitMessages []string, rawTitle string) (story, title string) {
+func (s *StoryServiceEnabled) getStoryAndEnrichTitle(ctx context.Context, in io.Reader, commitMessages []string, rawTitle string) (story, title string) {
 	story, found := s.storyFromMessageOrTitle(rawTitle)
 
 	if found {
 		return story, rawTitle
 	}
 
-	story, found = s.findStory(commitMessages)
+	story, found = s.findStory(ctx, in, commitMessages)
 	if found {
 		return story, strings.Join([]string{s.formatStoryInPRTitle(story), rawTitle}, " ")
 	}
@@ -85,13 +95,13 @@ func (s *StoryServiceEnabled) getStoryAndEnrichTitle(commitMessages []string, ra
 	return "", rawTitle
 }
 
-func (s *StoryServiceEnabled) findStory(commitMessages []string) (story string, found bool) {
+func (s *StoryServiceEnabled) findStory(ctx context.Context, in io.Reader, commitMessages []string) (story string, found bool) {
 	story, found = s.extractFromCommitMessages(commitMessages)
 	if found {
 		return story, true
 	}
 
-	story, found = s.fetchStory()
+	story, found = s.fetchStory(ctx, in)
 	if found {
 		return story, true
 	}
@@ -99,9 +109,56 @@ func (s *StoryServiceEnabled) findStory(commitMessages []string) (story string, 
 	return "", false
 }
 
-func (s *StoryServiceEnabled) fetchStory() (story string, found bool) {
-	// TODO(ClairePhi): implement
-	return "", false
+func (s *StoryServiceEnabled) fetchStory(ctx context.Context, in io.Reader) (story string, found bool) {
+	stories, err := s.storyFetcher.FetchInProgressStories(ctx)
+	if err != nil {
+		fmt.Printf("could not fetch In Progress Stories: %s\n", err.Error())
+		return "", false
+	}
+
+	if len(stories) == 0 {
+		return "", false
+	}
+
+	story, err = s.selectStory(in, stories)
+	if err != nil {
+		fmt.Printf("could not select the Story: %s\n", err.Error())
+		return "", false
+	}
+
+	return story, true
+}
+
+func (s *StoryServiceEnabled) selectStory(in io.Reader, stories []Story) (selectedStory string, err error) {
+	fmt.Println("In Progress stories assigned to me:")
+
+	for idx, story := range stories {
+		fmt.Printf("%d - [%s] %s\n", idx, story.Identifier, story.Title)
+	}
+
+	fmt.Println("")
+
+	fmt.Println("Choose index: ")
+
+	// Taking input from user
+	reader := bufio.NewReader(in)
+	chosenIndex, err := reader.ReadString('\n')
+	if err != nil {
+		return "", errors.New("the input could not be read")
+	}
+
+	chosenIndex = strings.TrimSuffix(chosenIndex, "\n")
+
+	index, err := strconv.Atoi(chosenIndex)
+	if err != nil {
+		return "", errors.New("the input could not be converted to integer")
+	}
+
+	if index < 0 || index > len(stories)-1 {
+		return "", errors.New("the input is out from the story range")
+	}
+
+	return stories[index].Identifier, nil
 }
 
 func (s *StoryServiceEnabled) extractFromCommitMessages(messages []string) (story string, found bool) {
