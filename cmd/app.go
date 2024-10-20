@@ -27,6 +27,7 @@ func MakeApp(out io.Writer, repo *core.Repo, gh func(context.Context) core.Gh) *
 			RebaseCommand(repo),
 			PushCommand(repo),
 			CommentCommand(repo, gh),
+			BranchCliCommand(repo),
 		},
 		Action: func(ctx *cli.Context) error {
 			// Called only if no subcommand match.
