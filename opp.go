@@ -10,6 +10,7 @@ import (
 
 	"github.com/cupcicm/opp/cmd"
 	"github.com/cupcicm/opp/core"
+	"github.com/cupcicm/opp/core/story"
 	"github.com/spf13/viper"
 )
 
@@ -21,6 +22,10 @@ func gh(ctx context.Context) core.Gh {
 	return core.NewClient(ctx)
 }
 
+func sf(tool, token string) story.StoryFetcher {
+	return story.NewStoryFetcher(tool, token)
+}
+
 func main() {
 	repo := core.Current()
 	viper.AddConfigPath(repo.DotOpDir())
@@ -29,7 +34,7 @@ func main() {
 	viper.SetConfigType("yaml")
 	viper.ReadInConfig()
 
-	root := cmd.MakeApp(os.Stdout, repo, gh)
+	root := cmd.MakeApp(os.Stdout, os.Stdin, repo, gh, sf)
 	ctx, cancel := CommandContext()
 	if !repo.OppEnabled() && (len(os.Args) != 2 || os.Args[1] != "init") {
 		fmt.Println("Please run opp init first")
