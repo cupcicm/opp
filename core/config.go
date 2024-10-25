@@ -10,7 +10,7 @@ import (
 func init() {
 	viper.SetDefault("github.merge.method", "rebase")
 	viper.SetDefault("github.timeout", 30*time.Second)
-	viper.SetDefault("story.enrichbody", false)
+	viper.SetDefault("story.enrich", true)
 }
 
 func GetGithubToken() string {
@@ -59,6 +59,10 @@ func GetStoryTool() string {
 	return viper.GetString("story.tool")
 }
 
-func GetStoryToolBaseUrl() string {
-	return viper.GetString("story.enrichbodybaseurl")
+func GetStoryToolUrl() string {
+	return viper.GetString("story.url")
+}
+
+func EnrichPrBodyWithStoryEnabled() bool {
+	return viper.GetBool("story.enrich")
 }
