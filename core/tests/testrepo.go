@@ -42,7 +42,7 @@ func setConfig() {
 	viper.Set("repo.github", "cupcicm/opp")
 	viper.Set("repo.remote", "origin")
 	viper.Set("story.tool", "jira")
-	viper.Set("story.enrichbodybaseurl", "https://my.base.url/browse")
+	viper.Set("story.url", "https://my.base.url/browse")
 }
 
 func NewTestRepo(t *testing.T) *TestRepo {

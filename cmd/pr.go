@@ -139,7 +139,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 type create struct {
 	Repo         *core.Repo
 	Github       core.Gh
-	StoryService *story.StoryService
+	StoryService story.StoryService
 }
 
 type args struct {

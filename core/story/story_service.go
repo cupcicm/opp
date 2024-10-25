@@ -14,29 +14,54 @@ const storyPattern = `\w+[-_]\d+`
 
 var storyPatternWithBrackets = fmt.Sprintf(`\[%s\]`, storyPattern)
 
-type StoryService struct {
-	re             *regexp.Regexp
-	reWithBrackets *regexp.Regexp
+type StoryService interface {
+	EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error)
 }
 
-func NewStoryService() (*StoryService, error) {
+func NewStoryService() (StoryService, error) {
+	tool := core.GetStoryTool()
+	url := core.GetStoryToolUrl()
+
+	if tool == "" && url == "" {
+		return &StoryServiceNoop{}, nil
+	}
+
+	if tool == "" || url == "" {
+		panic("please fill in all fields for the Story in the config (story.tool and story.url)")
+	}
+
 	re, err := regexp.Compile(storyPattern)
 	if err != nil {
-		return nil, err
+		panic("storyPattern regexp doesn't compile")
 	}
 
 	reWithBrackets, err := regexp.Compile(storyPatternWithBrackets)
 	if err != nil {
-		return nil, err
+		panic("storyPatternWithBrackets regexp doesn't compile")
 	}
 
-	return &StoryService{
+	return &StoryServiceEnabled{
 		re:             re,
 		reWithBrackets: reWithBrackets,
+		tool:           tool,
+		url:            url,
 	}, nil
 }
 
-func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
+type StoryServiceNoop struct{}
+
+func (s *StoryServiceNoop) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
+	return rawTitle, rawBody, nil
+}
+
+type StoryServiceEnabled struct {
+	re             *regexp.Regexp
+	reWithBrackets *regexp.Regexp
+	tool           string
+	url            string
+}
+
+func (s *StoryServiceEnabled) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
 	story, title := s.getStoryAndEnrichTitle(commitMessages, rawTitle)
 	body, err = s.enrichBody(rawBody, story)
 	if err != nil {
@@ -45,7 +70,7 @@ func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, raw
 	return title, body, nil
 }
 
-func (s *StoryService) getStoryAndEnrichTitle(commitMessages []string, rawTitle string) (story, title string) {
+func (s *StoryServiceEnabled) getStoryAndEnrichTitle(commitMessages []string, rawTitle string) (story, title string) {
 	story, found := s.storyFromMessageOrTitle(rawTitle)
 
 	if found {
@@ -60,7 +85,7 @@ func (s *StoryService) getStoryAndEnrichTitle(commitMessages []string, rawTitle 
 	return "", rawTitle
 }
 
-func (s *StoryService) findStory(commitMessages []string) (story string, found bool) {
+func (s *StoryServiceEnabled) findStory(commitMessages []string) (story string, found bool) {
 	story, found = s.extractFromCommitMessages(commitMessages)
 	if found {
 		return story, true
@@ -74,12 +99,12 @@ func (s *StoryService) findStory(commitMessages []string) (story string, found b
 	return "", false
 }
 
-func (s *StoryService) fetchStory() (story string, found bool) {
+func (s *StoryServiceEnabled) fetchStory() (story string, found bool) {
 	// TODO(ClairePhi): implement
 	return "", false
 }
 
-func (s *StoryService) extractFromCommitMessages(messages []string) (story string, found bool) {
+func (s *StoryServiceEnabled) extractFromCommitMessages(messages []string) (story string, found bool) {
 	for _, m := range messages {
 		story, found = s.storyFromMessageOrTitle(m)
 		if !found {
@@ -93,21 +118,21 @@ func (s *StoryService) extractFromCommitMessages(messages []string) (story strin
 	return "", false
 }
 
-func (s *StoryService) storyFromMessageOrTitle(str string) (string, bool) {
+func (s *StoryServiceEnabled) storyFromMessageOrTitle(str string) (string, bool) {
 	result := s.reWithBrackets.FindString(str)
 	return s.sanitizeStory(result), result != ""
 }
 
-func (s *StoryService) sanitizeStory(storyBracket string) string {
+func (s *StoryServiceEnabled) sanitizeStory(storyBracket string) string {
 	return s.re.FindString(storyBracket)
 }
 
-func (s *StoryService) formatStoryInPRTitle(story string) string {
+func (s *StoryServiceEnabled) formatStoryInPRTitle(story string) string {
 	return fmt.Sprintf("[%s]", story)
 }
 
-func (s *StoryService) enrichBody(rawBody, story string) (string, error) {
-	if story == "" || core.GetStoryToolBaseUrl() == "" {
+func (s *StoryServiceEnabled) enrichBody(rawBody, story string) (string, error) {
+	if story == "" || !core.EnrichPrBodyWithStoryEnabled() {
 		return rawBody, nil
 	}
 
@@ -123,11 +148,8 @@ func (s *StoryService) enrichBody(rawBody, story string) (string, error) {
 	return strings.Join([]string{fmt.Sprintf("- %s", link), rawBody}, "\n\n"), nil
 }
 
-func (s *StoryService) formatBodyInPRTitle(story string) (string, error) {
-	tool := core.GetStoryTool()
-	baseUrl := core.GetStoryToolBaseUrl()
+func (s *StoryServiceEnabled) formatBodyInPRTitle(story string) (string, error) {
+	url := fmt.Sprintf("%s/%s", s.url, story)
 
-	url := fmt.Sprintf("%s/%s", baseUrl, story)
-
-	return fmt.Sprintf("%s [%s](%s)", cases.Title(language.Und).String(tool), story, url), nil
+	return fmt.Sprintf("%s [%s](%s)", cases.Title(language.Und).String(s.tool), story, url), nil
 }
