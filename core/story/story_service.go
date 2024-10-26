@@ -42,8 +42,8 @@ func NewStoryService() (*StoryService, error) {
 	}, nil
 }
 
-func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
-	story, title := s.getStoryAndEnrichTitle(commitMessages, rawTitle)
+func (s *StoryService) EnrichBodyAndTitle(branchTag string, commitMessages []string, rawTitle, rawBody string) (title, body string, err error) {
+	story, title := s.getStoryAndEnrichTitle(branchTag, commitMessages, rawTitle)
 	body, err = s.enrichBody(rawBody, story)
 	if err != nil {
 		return "", "", err
@@ -51,7 +51,7 @@ func (s *StoryService) EnrichBodyAndTitle(commitMessages []string, rawTitle, raw
 	return title, body, nil
 }
 
-func (s *StoryService) getStoryAndEnrichTitle(commitMessages []string, rawTitle string) (story, title string) {
+func (s *StoryService) getStoryAndEnrichTitle(branchTag string, commitMessages []string, rawTitle string) (story, title string) {
 	story, found := s.storyFromMessageOrTitle(rawTitle)
 
 	if found {
@@ -61,6 +61,19 @@ func (s *StoryService) getStoryAndEnrichTitle(commitMessages []string, rawTitle 
 	story, found = s.findStory(commitMessages)
 	if found {
 		return story, strings.Join([]string{s.formatStoryInPRTitle(story), rawTitle}, " ")
+	}
+
+	if branchTag != "" {
+		story, found := s.storyFromMessageOrTitle(branchTag)
+		if !found {
+			found = s.re.MatchString(branchTag)
+			if found {
+				story = branchTag
+			}
+		}
+		if found {
+			return story, strings.Join([]string{s.formatStoryInPRTitle(story), rawTitle}, " ")
+		}
 	}
 
 	return "", rawTitle
