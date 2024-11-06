@@ -5,8 +5,8 @@ import (
 )
 
 type Story struct {
-	title      string
-	identifier string
+	Title      string
+	Identifier string
 }
 
 type StoryFetcher interface {
