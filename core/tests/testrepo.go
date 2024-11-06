@@ -41,7 +41,7 @@ func setConfig() {
 	viper.Set("repo.branch", "master")
 	viper.Set("repo.github", "cupcicm/opp")
 	viper.Set("repo.remote", "origin")
-	viper.Set("story.tool", "jira")
+	viper.Set("story.tool", "linear")
 	viper.Set("story.url", "https://my.base.url/browse")
 }
 
