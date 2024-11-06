@@ -73,10 +73,7 @@ func (l *linearStoryFetcher) FetchInProgressStories(ctx context.Context) (storie
 		return nil, fmt.Errorf("failed to fetch data from the linear graphql API: %w", err)
 	}
 	for _, issue := range respData.Issues.Nodes {
-		stories = append(stories, Story{
-			title:      issue.Title,
-			identifier: issue.Identifier,
-		})
+		stories = append(stories, Story(issue))
 	}
 
 	return stories, nil
