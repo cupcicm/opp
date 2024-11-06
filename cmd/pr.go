@@ -90,11 +90,7 @@ func PrCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
 			if err != nil {
 				return err
 			}
-			storyService, err := story.NewStoryService()
-			if err != nil {
-				return err
-			}
-			pr := create{Repo: repo, Github: gh(cCtx.Context), StoryService: storyService}
+			pr := create{Repo: repo, Github: gh(cCtx.Context), StoryService: story.NewStoryService()}
 			args, err := pr.SanitizeArgs(cCtx)
 			if err != nil {
 				return err
