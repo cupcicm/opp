@@ -18,12 +18,12 @@ type StoryService interface {
 	EnrichBodyAndTitle(commitMessages []string, rawTitle, rawBody string) (title, body string, err error)
 }
 
-func NewStoryService() (StoryService, error) {
+func NewStoryService() StoryService {
 	tool := core.GetStoryTool()
 	url := core.GetStoryToolUrl()
 
 	if tool == "" && url == "" {
-		return &StoryServiceNoop{}, nil
+		return &StoryServiceNoop{}
 	}
 
 	if tool == "" || url == "" {
@@ -45,7 +45,7 @@ func NewStoryService() (StoryService, error) {
 		reWithBrackets: reWithBrackets,
 		tool:           tool,
 		url:            url,
-	}, nil
+	}
 }
 
 type StoryServiceNoop struct{}
