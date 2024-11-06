@@ -24,19 +24,19 @@ func TestPrStory(t *testing.T) {
 			name:           "story a the beginning of the title added to body",
 			commitMessages: []string{"[ABC-123] my title\nmy body", "a\nb"},
 			expectedTitle:  "[ABC-123] my title",
-			expectedBody:   "- Jira [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body",
+			expectedBody:   "- Linear [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body",
 		},
 		{
 			name:           "story a the middle of the title added to body",
 			commitMessages: []string{"my [ABC-123] title\nmy body", "a\nb"},
 			expectedTitle:  "my [ABC-123] title",
-			expectedBody:   "- Jira [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body",
+			expectedBody:   "- Linear [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body",
 		},
 		{
 			name:           "story a the end of the title added to body",
 			commitMessages: []string{"my title [ABC-123]\nmy body", "a\nb"},
 			expectedTitle:  "my title [ABC-123]",
-			expectedBody:   "- Jira [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body",
+			expectedBody:   "- Linear [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body",
 		},
 		{
 			name:           "no story",
@@ -48,25 +48,25 @@ func TestPrStory(t *testing.T) {
 			name:           "empty body",
 			commitMessages: []string{"[ABC-123] my commit title", "a\nb"},
 			expectedTitle:  "[ABC-123] my commit title",
-			expectedBody:   "- Jira [ABC-123](https://my.base.url/browse/ABC-123)",
+			expectedBody:   "- Linear [ABC-123](https://my.base.url/browse/ABC-123)",
 		},
 		{
 			name:           "story twice in the title",
 			commitMessages: []string{"[ABC-123] [DEF-456] my title\nmy body", "a\nb"},
 			expectedTitle:  "[ABC-123] [DEF-456] my title",
-			expectedBody:   "- Jira [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body",
+			expectedBody:   "- Linear [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body",
 		},
 		{
 			name:           "story extracted from other commit",
 			commitMessages: []string{"my title without story\nmy body without story", "a\nhere [ABC-123]", "c\nd"},
 			expectedTitle:  "[ABC-123] my title without story",
-			expectedBody:   "- Jira [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body without story",
+			expectedBody:   "- Linear [ABC-123](https://my.base.url/browse/ABC-123)\n\nmy body without story",
 		},
 		{
 			name:           "story extracted from other commit with several stories",
 			commitMessages: []string{"my title without story\nmy body without story", "a\nhere [ABC-123]", "c\nand here [DEF-456]"},
 			expectedTitle:  "[DEF-456] my title without story",
-			expectedBody:   "- Jira [DEF-456](https://my.base.url/browse/DEF-456)\n\nmy body without story",
+			expectedBody:   "- Linear [DEF-456](https://my.base.url/browse/DEF-456)\n\nmy body without story",
 		},
 	}
 
