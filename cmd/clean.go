@@ -81,13 +81,21 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 	cleanPr := func(pr core.LocalPr) {
 		defer sem.Release(1)
 		_, err := c.repo.GetRemoteTip(&pr)
+		if err != nil {
+			fmt.Printf("error Get RemoteTip: %s\n", err.Error())
+		} else {
+			fmt.Printf("no error GetRemoteTip\n")
+		}
+
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			fmt.Println("reference not found. Cleanup and merge")
 			// The remote tip does not exist anymore : it has been deleted on the github repo.
 			// Probably because the PR is either abandonned or merged.
 			c.repo.CleanupAfterMerge(ctx, &pr)
 		} else {
 			githubPr, _, err := c.pullRequests.Get(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber)
 			if err != nil {
+				fmt.Printf("error Get PullRequests: %s", err.Error())
 				select {
 				case results <- cleanResult{err, pr}:
 				case <-ctx.Done():
@@ -95,6 +103,7 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 				return
 			}
 			if *githubPr.State == "closed" {
+				fmt.Println("PR closed. Cleanup and merge")
 				c.repo.CleanupAfterMerge(ctx, &pr)
 			}
 		}

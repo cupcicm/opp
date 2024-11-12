@@ -402,7 +402,10 @@ func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
 
 func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others []LocalPr) {
 	for _, possibleDependentPR := range others {
-		ancestor, _ := possibleDependentPR.GetAncestor()
+		ancestor, err := possibleDependentPR.GetAncestor()
+		if err != nil {
+			fmt.Printf("error GetAncestor for pr %s: %s\n", string(possibleDependentPR.PrNumber), err.Error())
+		}
 		for _, deleting := range toclean {
 			if ancestor.LocalName() == deleting.LocalName() {
 				// This is a PR that depends on the PR we are currently cleaning.
@@ -420,9 +423,19 @@ func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others [
 }
 
 func (r *Repo) DeleteLocalAndRemoteBranch(ctx context.Context, branch Branch) error {
-	r.Repository.DeleteBranch(branch.LocalName())
-	r.Storer.RemoveReference(plumbing.NewBranchReferenceName(branch.LocalName()))
-	return r.DeleteRemoteBranch(ctx, branch)
+	err := r.Repository.DeleteBranch(branch.LocalName())
+	if err != nil {
+		fmt.Printf("error DeleteBranch for branch %s: %s\n", branch.LocalName(), err.Error())
+	}
+	err = r.Storer.RemoveReference(plumbing.NewBranchReferenceName(branch.LocalName()))
+	if err != nil {
+		fmt.Printf("error RemoveReference for branch %s: %s\n", branch.LocalName(), err.Error())
+	}
+	err = r.DeleteRemoteBranch(ctx, branch)
+	if err != nil {
+		fmt.Printf("error DeleteRemoteBranch for branch %s: %s\n", branch.LocalName(), err.Error())
+	}
+	return err
 }
 
 func (r *Repo) DeleteRemoteBranch(ctx context.Context, branch Branch) error {
