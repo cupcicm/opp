@@ -3,6 +3,7 @@ module github.com/cupcicm/opp
 go 1.21
 
 require (
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/go-git/go-git/v5 v5.9.0
 	github.com/google/go-github/v56 v56.0.0
 	github.com/spf13/viper v1.17.0
