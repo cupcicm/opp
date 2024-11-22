@@ -7,6 +7,7 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/tests"
+	"github.com/google/go-github/v56/github"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,6 +68,34 @@ func TestCanSetAncestor(t *testing.T) {
 
 	r.CreatePr(t, "HEAD^", 2)
 	rebasedOnMaster := r.CreatePr(t, "HEAD", 3, "--base", "2")
+
+	assert.True(t, rebasedOnMaster.StateIsLoaded())
+	ancestor, err := rebasedOnMaster.GetAncestor()
+	if assert.Nil(t, err) {
+		assert.Equal(t, "pr/2", ancestor.LocalName())
+	}
+}
+
+func TestCanSetAncestorWithDraft(t *testing.T) {
+	r := tests.NewTestRepo(t)
+
+	r.CreatePr(t, "HEAD^", 2)
+
+	draft := true
+	remote := "cupcicm/pr/3"
+	base := "cupcicm/pr/2"
+	title := "4"
+	body := ""
+
+	prDetails := github.NewPullRequest{
+		Title: &title,
+		Head:  &remote,
+		Base:  &base,
+		Body:  &body,
+		Draft: &draft,
+	}
+
+	rebasedOnMaster := r.CreatePrAssertPrDetails(t, "HEAD", 3, prDetails, "--base", "2", "--draft")
 
 	assert.True(t, rebasedOnMaster.StateIsLoaded())
 	ancestor, err := rebasedOnMaster.GetAncestor()
