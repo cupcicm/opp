@@ -301,15 +301,15 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 			headCommit, core.GetRemoteName(), core.GetBaseBranch(),
 		), 1)
 	}
-	return &args{
-		AncestorBranch: ancestor,
-		Commits:        commits,
-		Detached:       previousArgs.Detached,
-		InitialBranch:  previousArgs.InitialBranch,
-		NeedsRebase:    false,
-		CheckoutPr:     true,
-		Extract:        previousArgs.Extract,
-	}, nil
+
+	// make a deep copy of previous args
+	newArgs := *previousArgs
+	newArgs.AncestorBranch = ancestor
+	newArgs.Commits = commits
+	newArgs.NeedsRebase = false
+	newArgs.CheckoutPr = true
+
+	return &newArgs, nil
 }
 
 func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.LocalPr, error) {
