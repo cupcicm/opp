@@ -10,7 +10,7 @@ import (
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/go-github/v56/github"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 var (
@@ -28,12 +28,12 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 	cmd := &cli.Command{
 		Name:    "merge",
 		Aliases: []string{"m"},
-		Action: func(cCtx *cli.Context) error {
-			pr, mergingCurrentBranch, err := PrFromFirstArgument(repo, cCtx)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			pr, mergingCurrentBranch, err := PrFromFirstArgument(repo, cmd)
 			if err != nil {
 				return err
 			}
-			merger := merger{Repo: repo, PullRequests: gh(cCtx.Context).PullRequests()}
+			merger := merger{Repo: repo, PullRequests: gh(ctx).PullRequests()}
 			ancestors := pr.AllAncestors()
 			if len(ancestors) >= 1 {
 				fmt.Printf("%s is not mergeable because it has unmerged dependent PRs.\n", pr.Url())
@@ -41,10 +41,10 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 			}
 			fmt.Print("Checking mergeability... ")
 
-			isMergeable, err := merger.IsMergeable(cCtx.Context, pr)
+			isMergeable, err := merger.IsMergeable(ctx, pr)
 
 			if errors.Is(err, ErrBeingEvaluated) {
-				isMergeable, err = merger.WaitForMergeability(cCtx.Context, pr)
+				isMergeable, err = merger.WaitForMergeability(ctx, pr)
 			}
 			if !isMergeable {
 				PrintFailure(nil)
@@ -52,7 +52,7 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 			}
 			PrintSuccess()
 			mergeContext, cancel := context.WithTimeoutCause(
-				cCtx.Context, core.GetGithubTimeout(),
+				ctx, core.GetGithubTimeout(),
 				fmt.Errorf("merging too slow, increase github.timeout"),
 			)
 			defer cancel()

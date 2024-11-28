@@ -9,7 +9,7 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"golang.org/x/exp/slices"
 )
 
@@ -23,13 +23,13 @@ func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core
 	cmd := &cli.Command{
 		Name:    "status",
 		Aliases: []string{"s"},
-		Action: func(cCtx *cli.Context) error {
-			if cCtx.NArg() > 0 {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if cmd.NArg() > 0 {
 				return cli.Exit("too many arguments", 1)
 			}
-			status := status{Out: out, Repo: repo, PullRequests: gh(cCtx.Context).PullRequests()}
-			repo.Fetch(cCtx.Context)
-			localPrs := repo.AllPrs(cCtx.Context)
+			status := status{Out: out, Repo: repo, PullRequests: gh(ctx).PullRequests()}
+			repo.Fetch(ctx)
+			localPrs := repo.AllPrs(ctx)
 			alreadyMentioned := make(map[int]bool)
 			slices.SortFunc(localPrs, func(pr1 core.LocalPr, pr2 core.LocalPr) int {
 				if len(pr1.AllAncestors()) > len(pr2.AllAncestors()) {
@@ -48,12 +48,12 @@ func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core
 					for i, ancestor := range append(ancestors, &pr) {
 						alreadyMentioned[ancestor.PrNumber] = true
 						fmt.Fprintf(out, "  %d. ", i+1)
-						status.PrintStatus(cCtx.Context, ancestor, 3)
+						status.PrintStatus(ctx, ancestor, 3)
 					}
 
 				} else {
 					fmt.Fprintf(out, "PR #%d. ", pr.PrNumber)
-					status.PrintStatus(cCtx.Context, &pr, 0)
+					status.PrintStatus(ctx, &pr, 0)
 				}
 			}
 			return nil

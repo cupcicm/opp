@@ -9,7 +9,7 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -18,12 +18,12 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 		Name:        "clean",
 		Aliases:     []string{"gc"},
 		Description: "Deletes all local PRs that have been closed on github",
-		Action: func(cCtx *cli.Context) error {
-			repo.Fetch(cCtx.Context)
-			localPrs := repo.AllPrs(cCtx.Context)
-			pullRequests := gh(cCtx.Context).PullRequests()
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			repo.Fetch(ctx)
+			localPrs := repo.AllPrs(ctx)
+			pullRequests := gh(ctx).PullRequests()
 
-			return cleaner{repo, localPrs, pullRequests}.Clean(cCtx.Context)
+			return cleaner{repo, localPrs, pullRequests}.Clean(ctx)
 		},
 	}
 	return cmd

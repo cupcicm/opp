@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func PushCommand(repo *core.Repo) *cli.Command {
 	cmd := &cli.Command{
 		Name:    "push",
-		Aliases: []string{"up", "p", "push"},
-		Action: func(cCtx *cli.Context) error {
-			err := repo.Fetch(cCtx.Context)
+		Aliases: []string{"up", "p"},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			err := repo.Fetch(ctx)
 			if err != nil {
 				return fmt.Errorf("on fetch: %w", err)
 			}
@@ -27,7 +27,7 @@ func PushCommand(repo *core.Repo) *cli.Command {
 				return nil
 			}
 			pr := branch.(*core.LocalPr)
-			return push(cCtx.Context, repo, pr)
+			return push(ctx, repo, pr)
 		},
 	}
 

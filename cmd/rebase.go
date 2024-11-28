@@ -9,7 +9,7 @@ import (
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func RebaseCommand(repo *core.Repo) *cli.Command {
@@ -17,21 +17,21 @@ func RebaseCommand(repo *core.Repo) *cli.Command {
 		Name:    "rebase",
 		Aliases: []string{"reb", "r", "pull"},
 		Usage:   "rebase the current branch and dependent PRs if needed.",
-		Action: func(cCtx *cli.Context) error {
-			if cCtx.NArg() > 0 {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if cmd.NArg() > 0 {
 				return errors.New("too many arguments")
 			}
 			pr, headIsAPr := repo.PrForHead()
 			if !headIsAPr {
 				return cli.Exit("You can run rebase only on local pr branches", 1)
 			}
-			if err := repo.Fetch(cCtx.Context); err != nil {
+			if err := repo.Fetch(ctx); err != nil {
 				return cli.Exit(fmt.Errorf("error during fetch: %w", err), 1)
 			}
-			if !repo.NoLocalChanges(cCtx.Context) {
+			if !repo.NoLocalChanges(ctx) {
 				return cli.Exit("there are uncommitted changes. Cannot run rebase", 1)
 			}
-			hasBeenMerged, err := rebase(cCtx.Context, repo, pr, true)
+			hasBeenMerged, err := rebase(ctx, repo, pr, true)
 			if err != nil {
 				return err
 			}

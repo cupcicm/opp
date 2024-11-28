@@ -5,19 +5,19 @@ import (
 	"strconv"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 // PrFromFirstArgument returns the PR number supplied as a commandline argument, or if no argument is supplied,
 // the PR for the current branch.
 // The PR number can be supplied as a simple integer, or in the form `pr/$number`.
-func PrFromFirstArgument(repo *core.Repo, cCtx *cli.Context) (*core.LocalPr, bool, error) {
+func PrFromFirstArgument(repo *core.Repo, cmd *cli.Command) (*core.LocalPr, bool, error) {
 	var prParam string
-	if cCtx.Args().Present() {
-		if cCtx.NArg() > 1 {
+	if cmd.Args().Present() {
+		if cmd.NArg() > 1 {
 			return nil, false, cli.Exit("too many arguments", 1)
 		}
-		prParam = cCtx.Args().First()
+		prParam = cmd.Args().First()
 
 	}
 	return PrFromStringOrCurrentBranch(repo, prParam)

@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 type Paths struct {
@@ -36,7 +36,7 @@ type TestRepo struct {
 	Paths            Paths
 	GithubMock       *GithubMock
 	StoryFetcherMock *StoryFetcherMock
-	App              *cli.App
+	App              *cli.Command
 	Out              *strings.Builder
 	In               *bytes.Buffer
 }
@@ -97,7 +97,7 @@ func (r *TestRepo) GetGithubMock(ctx context.Context) *GithubMock {
 }
 
 func (r *TestRepo) Run(command string, args ...string) error {
-	return r.App.RunContext(context.Background(), append([]string{"opp", command}, args...))
+	return r.App.Run(context.Background(), append([]string{"opp", command}, args...))
 }
 
 func (r *TestRepo) Commit(msg string) plumbing.Hash {

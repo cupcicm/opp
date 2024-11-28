@@ -3,9 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+
 	"github.com/cupcicm/opp/core"
 	"github.com/google/go-github/v56/github"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func CommentCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Command {
@@ -13,17 +14,17 @@ func CommentCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comm
 		Name:        "comment",
 		Description: "Add a comment to a PR",
 		Usage:       "Adds a comment to a PR",
-		Action: func(cCtx *cli.Context) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 
 			var prParam string
 			var comment string
-			switch cCtx.NArg() {
+			switch cmd.NArg() {
 			case 1:
 				prParam = ""
-				comment = cCtx.Args().First()
+				comment = cmd.Args().First()
 			case 2:
-				prParam = cCtx.Args().First()
-				comment = cCtx.Args().Get(1)
+				prParam = cmd.Args().First()
+				comment = cmd.Args().Get(1)
 			default:
 				return cli.Exit("Usage: opp comment [pr] $comment", 1)
 			}
@@ -33,12 +34,12 @@ func CommentCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comm
 				return err
 			}
 			ctx, cancel := context.WithTimeoutCause(
-				cCtx.Context, core.GetGithubTimeout(),
+				ctx, core.GetGithubTimeout(),
 				fmt.Errorf("adding comment too slow, increase github.timeout"),
 			)
 			defer cancel()
 
-			_, _, err = gh(cCtx.Context).Issues().CreateComment(ctx, core.GetGithubOwner(),
+			_, _, err = gh(ctx).Issues().CreateComment(ctx, core.GetGithubOwner(),
 				core.GetGithubRepoName(), pr.PrNumber, &github.IssueComment{Body: &comment})
 			if err != nil {
 				PrintFailure(nil)
