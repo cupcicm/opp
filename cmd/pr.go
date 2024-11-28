@@ -14,7 +14,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-github/v56/github"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 var (
@@ -36,7 +36,7 @@ specified a different base for example.
 `)
 	DraftFlagUsage   = "Create a draft PR."
 	ExtractFlagUsage = strings.TrimSpace(`
-When set, tries to extract the commits used to create the PR from the current branch. 
+When set, tries to extract the commits used to create the PR from the current branch.
 This means that the current branch will not retain the commits you used to create the PR, they
 will be "moved" to the PR branch, and will not stay in your main branch.
 `)
@@ -86,25 +86,25 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 				Usage:   ExtractFlagUsage,
 			},
 		},
-		Action: func(cCtx *cli.Context) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			initialRef, err := repo.Head()
 			if err != nil {
 				return err
 			}
-			pr := create{Repo: repo, Github: gh(cCtx.Context), StoryFetcher: sf}
-			args, err := pr.SanitizeArgs(cCtx)
+			pr := create{Repo: repo, Github: gh(ctx), StoryFetcher: sf}
+			args, err := pr.SanitizeArgs(ctx, cmd)
 			if err != nil {
 				return err
 			}
 			if args.NeedsRebase {
-				newArgs, err := pr.RebasePrCommits(cCtx.Context, args)
+				newArgs, err := pr.RebasePrCommits(ctx, args)
 				if err != nil {
 					repo.CheckoutRef(initialRef)
 					return err
 				}
 				args = newArgs
 			}
-			localPr, err := pr.Create(cCtx.Context, in, args)
+			localPr, err := pr.Create(ctx, in, args)
 			if err != nil {
 				return err
 			}
@@ -115,10 +115,10 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 				if err != nil {
 					return err
 				}
-				if !repo.TryRebaseCurrentBranchSilently(cCtx.Context, localPr) {
+				if !repo.TryRebaseCurrentBranchSilently(ctx, localPr) {
 					return fmt.Errorf("problem while rebasing %s on %s\n", args.InitialBranch.LocalName(), localPr.LocalName())
 				}
-				if !repo.TryLocalRebaseOntoSilently(cCtx.Context, args.Commits[0].Hash, args.Commits[len(args.Commits)-1].Hash) {
+				if !repo.TryLocalRebaseOntoSilently(ctx, args.Commits[0].Hash, args.Commits[len(args.Commits)-1].Hash) {
 					return fmt.Errorf("problem while extracting PR commits from %s\n", args.InitialBranch.LocalName())
 				}
 			}
@@ -151,19 +151,19 @@ type args struct {
 	Extract        bool
 }
 
-func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
-	forHead := cCtx.Args().Present()
+func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, error) {
+	forHead := cmd.Args().Present()
 	var (
 		overrideAncestorBranch core.Branch
 		needsRebase            = false
-		headCommit, err        = HeadCommit(c.Repo, cCtx.Args())
+		headCommit, err        = HeadCommit(c.Repo, cmd.Args())
 	)
 	if err != nil {
 		return nil, err
 	}
-	overrideAncestor := cCtx.String("base")
-	localChanges := !c.Repo.NoLocalChanges(cCtx.Context)
-	extract := cCtx.Bool("extract")
+	overrideAncestor := cmd.String("base")
+	localChanges := !c.Repo.NoLocalChanges(ctx)
+	extract := cmd.Bool("extract")
 	if overrideAncestor != "" {
 		overrideAncestorBranch, err = c.Repo.GetBranch(overrideAncestor)
 		needsRebase = true
@@ -171,7 +171,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 			return nil, cli.Exit(fmt.Errorf("%s is not a valid branch", overrideAncestor), 1)
 		}
 	}
-	if cCtx.Bool("interactive") {
+	if cmd.Bool("interactive") {
 		needsRebase = true
 	}
 	// If there are local changes, we need to be very careful before we accept to create this PR
@@ -181,7 +181,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 			// rebased on top of it, the user needs to stash their changes.
 			return nil, cli.Exit("You have provided --base but have local changes, please stash them", 1)
 		}
-		if cCtx.Bool("checkout") && !forHead {
+		if cmd.Bool("checkout") && !forHead {
 			// If the user wants to checkout the PR at the end, it's OK but it needs to be a PR that will end
 			// up exactly with the same HEAD as before.
 			return nil, cli.Exit("Cannot checkout the PR since there are local changes. Please stash them", 1)
@@ -201,7 +201,7 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 	if ancestor.IsPr() && tip.Hash == headCommit {
 		return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
 	}
-	shouldCheckout := cCtx.Bool("checkout")
+	shouldCheckout := cmd.Bool("checkout")
 	head := core.Must(c.Repo.Head())
 
 	if !head.Name().IsBranch() {
@@ -211,8 +211,8 @@ func (c *create) SanitizeArgs(cCtx *cli.Context) (*args, error) {
 		Commits:     commits,
 		NeedsRebase: needsRebase,
 		CheckoutPr:  shouldCheckout,
-		Interactive: cCtx.Bool("interactive"),
-		DraftPr:     cCtx.Bool("draft"),
+		Interactive: cmd.Bool("interactive"),
+		DraftPr:     cmd.Bool("draft"),
 		Extract:     extract,
 	}
 	if head.Name().IsBranch() {

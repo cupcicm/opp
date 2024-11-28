@@ -56,7 +56,7 @@ func main() {
 		<-signalChan // second signal, hard exit
 		os.Exit(2)
 	}()
-	if err := root.RunContext(ctx, os.Args); err != nil {
+	if err := root.Run(ctx, os.Args); err != nil {
 		log.Fatal(err)
 	}
 }

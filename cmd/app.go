@@ -11,11 +11,11 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/story"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
-func MakeApp(out io.Writer, in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, sf func(string, string) story.StoryFetcher) *cli.App {
-	return &cli.App{
+func MakeApp(out io.Writer, in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, sf func(string, string) story.StoryFetcher) *cli.Command {
+	return &cli.Command{
 		Name:  "opp",
 		Usage: "Create, update and merge Github pull requests from the command line.",
 		Commands: []*cli.Command{
@@ -29,14 +29,14 @@ func MakeApp(out io.Writer, in io.Reader, repo *core.Repo, gh func(context.Conte
 			PushCommand(repo),
 			CommentCommand(repo, gh),
 		},
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			// Called only if no subcommand match.
-			args := ctx.Args()
+			args := cmd.Args()
 			if !args.Present() {
 				return errors.New("no subcommand provided")
 			}
 			subcommand := args.First()
-			return runCustomScript(ctx.Context, subcommand, args.Slice()[1:])
+			return runCustomScript(ctx, subcommand, args.Slice()[1:])
 		},
 	}
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/cupcicm/opp/core"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/spf13/viper"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 const ErrorPattern = "could not %s a global gitignore file, please add .opp to your .gitignore file manually"
@@ -21,7 +21,7 @@ func InitCommand(repo *core.Repo) *cli.Command {
 	return &cli.Command{
 		Name:  "init",
 		Usage: "indicate you are going to use opp in this git repo",
-		Action: func(cCtx *cli.Context) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			config := repo.Config()
 			if _, err := os.Stat(config); err == nil {
 				return cli.Exit("Config file already exists", 1)
@@ -31,8 +31,8 @@ func InitCommand(repo *core.Repo) *cli.Command {
 			i := initializer{repo}
 			i.AskGithubToken()
 			i.GuessRepoValues()
-			i.GetGithubValues(cCtx.Context)
-			err := i.AddOppInGlobalGitignore(cCtx.Context)
+			i.GetGithubValues(ctx)
+			err := i.AddOppInGlobalGitignore(ctx)
 			if err != nil {
 				fmt.Printf("%v\n", err)
 			}
