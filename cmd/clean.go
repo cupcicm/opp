@@ -79,6 +79,11 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 	}()
 
 	cleanPr := func(pr core.LocalPr) {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			results <- cleanResult{
+				err: fmt.Errorf("cannot acquire semaphore: %w", err),
+			}
+		}
 		defer sem.Release(1)
 		_, err := c.repo.GetRemoteTip(&pr)
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
@@ -105,9 +110,6 @@ func (c cleaner) cleaningPipeline(ctx context.Context) (chan cleanResult, error)
 	}
 
 	for _, pr := range c.localPrs {
-		if err := sem.Acquire(ctx, 1); err != nil {
-			return nil, err
-		}
 		go cleanPr(pr)
 	}
 
