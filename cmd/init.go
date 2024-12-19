@@ -67,9 +67,17 @@ func (i *initializer) GuessRepoValues() {
 	viper.Set("repo.github", githubRepo)
 	viper.Set("repo.remote", remoteName)
 
-	githubHead := core.Must(i.Repo.Reference(plumbing.NewRemoteHEADReferenceName(remoteName), false))
-	mainRef := githubHead.Target().Short()
-	mainBranch := mainRef[strings.Index(mainRef, "/")+1:]
+	var mainBranch = "master"
+	githubHead, err := i.Repo.Reference(plumbing.NewRemoteHEADReferenceName(remoteName), false)
+	if err != nil {
+		fmt.Printf("Could not guess the main branch of your %s remote.\n", remoteName)
+		fmt.Printf("Please enter the name of the main branch of your github repo (e.g. main, master): ")
+		reader := bufio.NewReader(os.Stdin)
+		mainBranch = strings.TrimSpace(core.Must(reader.ReadString('\n')))
+	} else {
+		mainRef := githubHead.Target().Short()
+		mainBranch = mainRef[strings.Index(mainRef, "/")+1:]
+	}
 	viper.Set("repo.branch", mainBranch)
 }
 
