@@ -133,7 +133,7 @@ func (s *StoryServiceEnabled) selectStory(in io.Reader, stories []Story) (select
 	fmt.Println("In Progress stories assigned to me:")
 
 	for idx, story := range stories {
-		fmt.Printf("%d - [%s] %s\n", idx, story.Identifier, story.Title)
+		fmt.Printf("%d - [%s] %s\n", idx+1, story.Identifier, story.Title)
 	}
 
 	fmt.Println("")
