@@ -153,6 +153,7 @@ func (s *StoryServiceEnabled) selectStory(in io.Reader, stories []Story) (select
 	if err != nil {
 		return "", errors.New("the input could not be converted to integer")
 	}
+	index -= 1
 
 	if index < 0 || index > len(stories)-1 {
 		return "", errors.New("the input is out from the story range")
