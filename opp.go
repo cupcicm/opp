@@ -22,8 +22,8 @@ func gh(ctx context.Context) core.Gh {
 	return core.NewClient(ctx)
 }
 
-func sf(tool, token string) story.StoryFetcher {
-	return story.NewStoryFetcher(tool, token)
+func sf(config story.StoryFetcherConfig) story.StoryFetcher {
+	return story.NewStoryFetcher(config)
 }
 
 func main() {
