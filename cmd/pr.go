@@ -53,7 +53,7 @@ whether it reached the base branch or the tip of another PR first when walking b
 `)
 )
 
-func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, sf func(string, string) story.StoryFetcher) *cli.Command {
+func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, sf story.StoryFetcherFactory) *cli.Command {
 	cmd := &cli.Command{
 		Name:        "pr",
 		Aliases:     []string{"pull-request", "new"},
@@ -136,7 +136,7 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 type create struct {
 	Repo         *core.Repo
 	Github       core.Gh
-	StoryFetcher func(string, string) story.StoryFetcher
+	StoryFetcher story.StoryFetcherFactory
 }
 
 type args struct {

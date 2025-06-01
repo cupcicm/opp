@@ -56,6 +56,15 @@ func GetGithubTimeout() time.Duration {
 }
 
 func GetStoryTool() string {
+	// Check new config format first
+	if viper.IsSet("jira.token") {
+		return "jira"
+	}
+	if viper.IsSet("linear.token") {
+		return "linear"
+	}
+
+	// Fallback to old config format
 	return viper.GetString("story.tool")
 }
 
@@ -63,10 +72,28 @@ func GetStoryToolUrl() string {
 	return viper.GetString("story.url")
 }
 
+func GetStoryToolToken() string {
+	// Check new config format first
+	if viper.IsSet("jira.token") {
+		return viper.GetString("jira.token")
+	}
+	if viper.IsSet("linear.token") {
+		return viper.GetString("linear.token")
+	}
+
+	// Fallback to old config format
+	return viper.GetString("story.token")
+}
+
 func EnrichPrBodyWithStoryEnabled() bool {
 	return viper.GetBool("story.enrich")
 }
 
-func GetStoryToolToken() string {
-	return viper.GetString("story.token")
+// New Jira-specific getters
+func GetJiraEmail() string {
+	return viper.GetString("jira.email")
+}
+
+func GetJiraHost() string {
+	return viper.GetString("jira.host")
 }

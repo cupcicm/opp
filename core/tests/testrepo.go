@@ -83,7 +83,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 		In:               &in,
 		App: cmd.MakeApp(&out, &in, repo, func(context.Context) core.Gh {
 			return mock
-		}, func(string, string) story.StoryFetcher {
+		}, func(config story.StoryFetcherConfig) story.StoryFetcher {
 			return storyFetcherMock
 		}),
 	}
@@ -305,7 +305,7 @@ func (s *StoryFetcherMock) FetchInProgressStories(ctx context.Context) ([]story.
 func (s *StoryFetcherMock) CallFetchInProgressStories(stories []story.Story, fetchError bool) {
 	var err error
 	if fetchError {
-		err = errors.New("Story fetch error")
+		err = errors.New("story fetch error")
 	}
 
 	s.On("FetchInProgressStories", mock.Anything).Return(stories, err).Once()
