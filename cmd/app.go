@@ -14,7 +14,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func MakeApp(out io.Writer, in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, sf func(string, string) story.StoryFetcher) *cli.Command {
+func MakeApp(out io.Writer, in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, sf story.StoryFetcherFactory) *cli.Command {
 	return &cli.Command{
 		Name:  "opp",
 		Usage: "Create, update and merge Github pull requests from the command line.",

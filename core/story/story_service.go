@@ -23,19 +23,45 @@ type StoryService interface {
 	EnrichBodyAndTitle(ctx context.Context, commitMessages []string, rawTitle, rawBody string) (title, body string, err error)
 }
 
-func NewStoryService(storyFetcher func(string, string) StoryFetcher, in io.Reader) StoryService {
-	tool := core.GetStoryTool()
-	url := core.GetStoryToolUrl()
-	token := core.GetStoryToolToken()
+type StoryFetcherFactory func(config StoryFetcherConfig) StoryFetcher
 
-	if tool == "" && url == "" && token == "" {
+func NewStoryService(storyFetcherFactory StoryFetcherFactory, in io.Reader) StoryService {
+	tool := core.GetStoryTool()
+
+	// If no tool config is present, story integration is disabled
+	if tool == "" {
 		return &StoryServiceNoop{}
 	}
 
-	if tool == "" || url == "" || token == "" {
-		panic("please fill in all Story fields in the config (story.tool, story.url and story.token)")
+	// For Jira, require new config format
+	if tool == "jira" {
+		email := core.GetJiraEmail()
+		host := core.GetJiraHost()
+
+		if email == "" || host == "" {
+			panic("Jira requires all fields to be set in config (jira.host, jira.email, jira.token)")
+		}
+
+		config := StoryFetcherConfig{
+			Tool:  tool,
+			Token: core.GetStoryToolToken(),
+			Host:  host,
+			Email: email,
+		}
+
+		return createStoryService(storyFetcherFactory, config, host, in)
 	}
 
+	// For Linear (supports both old and new config)
+	config := StoryFetcherConfig{
+		Tool:  tool,
+		Token: core.GetStoryToolToken(),
+	}
+
+	return createStoryService(storyFetcherFactory, config, core.GetStoryToolUrl(), in)
+}
+
+func createStoryService(storyFetcherFactory StoryFetcherFactory, config StoryFetcherConfig, url string, in io.Reader) StoryService {
 	re, err := regexp.Compile(storyPattern)
 	if err != nil {
 		panic("storyPattern regexp doesn't compile")
@@ -49,9 +75,9 @@ func NewStoryService(storyFetcher func(string, string) StoryFetcher, in io.Reade
 	return &StoryServiceEnabled{
 		re:             re,
 		reWithBrackets: reWithBrackets,
-		tool:           tool,
+		tool:           config.Tool,
 		url:            url,
-		storyFetcher:   storyFetcher(tool, token),
+		storyFetcher:   storyFetcherFactory(config),
 		in:             in,
 	}
 }
