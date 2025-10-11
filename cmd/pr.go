@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/story"
 	"github.com/go-git/go-git/v5/config"
@@ -334,6 +335,7 @@ func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.Lo
 		err = fmt.Errorf("pr has been created but could not set tracking branch")
 	}
 	fmt.Println(localPr.Url())
+	clipboard.WriteAll(fmt.Sprintf(":pr: <%s|%s>", localPr.Url(), title))
 	return localPr, err
 }
 
