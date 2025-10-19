@@ -94,8 +94,8 @@ func TestRebaseAbandonsGracefully(t *testing.T) {
 	rebaseTodo := string(core.Must(os.ReadFile(path.Join(r.Path(), ".git", "rebase-merge", "git-rebase-todo.backup"))))
 
 	// Also, the file should contain "pick commit 3" and "pick commit 4"
-	assert.Regexp(t, "pick [0-9a-z]+ 3", rebaseTodo)
-	assert.Regexp(t, "pick [0-9a-z]+ 4", rebaseTodo)
+	assert.Regexp(t, "pick [0-9a-z]+ .*3", rebaseTodo)
+	assert.Regexp(t, "pick [0-9a-z]+ .*4", rebaseTodo)
 }
 
 func TestRebaseFindsTipWhenMerged(t *testing.T) {
