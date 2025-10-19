@@ -334,6 +334,7 @@ func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.Lo
 		err = fmt.Errorf("pr has been created but could not set tracking branch")
 	}
 	fmt.Println(localPr.Url())
+	core.ClipboardWrite(localPr, title)
 	return localPr, err
 }
 
