@@ -22,14 +22,6 @@ void writeRichTextToPasteboard(const char *text, const char *linkText, const cha
         // Add link attribute
         NSURL *linkURL = [NSURL URLWithString:[NSString stringWithUTF8String:url]];
         [attrString addAttribute:NSLinkAttributeName value:linkURL range:linkRange];
-
-        // Optional: make the link blue and underlined
-        [attrString addAttribute:NSForegroundColorAttributeName
-                          value:[NSColor blueColor]
-                          range:linkRange];
-        [attrString addAttribute:NSUnderlineStyleAttributeName
-                          value:@(NSUnderlineStyleSingle)
-                          range:linkRange];
     }
 
     // Write RTF data to pasteboard
