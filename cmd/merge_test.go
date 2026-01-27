@@ -35,7 +35,7 @@ func TestMergeKeepsTrackOfAncestorTips(t *testing.T) {
 	// Check that pr3 knows about the tip of its ancestor (pr2)
 	assert.Len(t, pr3.AncestorTips(), 1)
 	pr2Tip := pr3.AncestorTips()[0]
-	assert.Equal(t, pr2Tip, core.Must(r.GetLocalTip(pr2)).Hash.String())
+	assert.Equal(t, pr2Tip, core.Must(r.GetLocalTip(pr2)))
 
 	assert.Nil(t, r.Run("merge"))
 
@@ -64,7 +64,7 @@ func TestMergeWaitsForMergeability(t *testing.T) {
 	// Check that pr3 knows about the tip of its ancestor (pr2)
 	assert.Len(t, pr3.AncestorTips(), 1)
 	pr2Tip := pr3.AncestorTips()[0]
-	assert.Equal(t, pr2Tip, core.Must(r.GetLocalTip(pr2)).Hash.String())
+	assert.Equal(t, pr2Tip, core.Must(r.GetLocalTip(pr2)))
 
 	assert.Nil(t, r.Run("merge"))
 

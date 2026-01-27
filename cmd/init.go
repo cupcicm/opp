@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v3"
 )
@@ -67,22 +66,47 @@ func (i *initializer) GuessRepoValues() {
 	viper.Set("repo.github", githubRepo)
 	viper.Set("repo.remote", remoteName)
 
-	githubHead := core.Must(i.Repo.Reference(plumbing.NewRemoteHEADReferenceName(remoteName), false))
-	mainRef := githubHead.Target().Short()
-	mainBranch := mainRef[strings.Index(mainRef, "/")+1:]
-	viper.Set("repo.branch", mainBranch)
+	// Get the remote HEAD to determine default branch
+	cmd := i.Repo.GitExec(context.Background(), "symbolic-ref refs/remotes/%s/HEAD", remoteName)
+	output, err := cmd.Output()
+	if err != nil {
+		// If we can't determine, default to main
+		viper.Set("repo.branch", "main")
+		return
+	}
+	refName := strings.TrimSpace(string(output))
+	// refName will be like "refs/remotes/origin/main"
+	parts := strings.Split(refName, "/")
+	if len(parts) > 0 {
+		mainBranch := parts[len(parts)-1]
+		viper.Set("repo.branch", mainBranch)
+	}
 }
 
 func (i *initializer) extractGithubRepo() (string, string) {
 	found := false
 	var result string
 	var remoteName string
-	for _, remote := range core.Must(i.Repo.Remotes()) {
-		urls := remote.Config().URLs
-		if len(urls) == 0 {
+
+	// Get list of remotes
+	cmd := i.Repo.GitExec(context.Background(), "remote")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", ""
+	}
+	remotes := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	for _, remote := range remotes {
+		if remote == "" {
 			continue
 		}
-		url := urls[0]
+		// Get URL for this remote
+		cmd := i.Repo.GitExec(context.Background(), "remote get-url %s", remote)
+		urlBytes, err := cmd.Output()
+		if err != nil {
+			continue
+		}
+		url := strings.TrimSpace(string(urlBytes))
 		index := strings.Index(url, "github.com")
 		dotGit := strings.LastIndex(url, ".git")
 		if index > -1 {
@@ -96,7 +120,7 @@ func (i *initializer) extractGithubRepo() (string, string) {
 			} else {
 				result = url[index+len("github.com")+1 : dotGit]
 			}
-			remoteName = remote.Config().Name
+			remoteName = remote
 		}
 	}
 	return remoteName, result

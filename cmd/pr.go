@@ -10,9 +10,6 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/story"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-github/v56/github"
 	"github.com/urfave/cli/v3"
 )
@@ -118,7 +115,7 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 				if !repo.TryRebaseCurrentBranchSilently(ctx, localPr) {
 					return fmt.Errorf("problem while rebasing %s on %s\n", args.InitialBranch.LocalName(), localPr.LocalName())
 				}
-				if !repo.TryLocalRebaseOntoSilently(ctx, args.Commits[0].Hash, args.Commits[len(args.Commits)-1].Hash) {
+				if !repo.TryLocalRebaseOntoSilently(ctx, args.Commits[0], args.Commits[len(args.Commits)-1]) {
 					return fmt.Errorf("problem while extracting PR commits from %s\n", args.InitialBranch.LocalName())
 				}
 			}
@@ -141,7 +138,7 @@ type create struct {
 
 type args struct {
 	AncestorBranch core.Branch
-	Commits        []*object.Commit
+	Commits        []string
 	NeedsRebase    bool
 	CheckoutPr     bool
 	Interactive    bool
@@ -198,13 +195,14 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 		), 1)
 	}
 	tip := core.Must(c.Repo.GetLocalTip(ancestor))
-	if ancestor.IsPr() && tip.Hash == headCommit {
+	if ancestor.IsPr() && tip == headCommit {
 		return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
 	}
 	shouldCheckout := cmd.Bool("checkout")
-	head := core.Must(c.Repo.Head())
 
-	if !head.Name().IsBranch() {
+	// Try to get current branch name
+	branchName, branchErr := c.Repo.GetCurrentBranchName()
+	if branchErr != nil {
 		shouldCheckout = true
 	}
 	args := args{
@@ -215,9 +213,9 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 		DraftPr:     cmd.Bool("draft"),
 		Extract:     extract,
 	}
-	if head.Name().IsBranch() {
+	if branchErr == nil {
 		args.Detached = false
-		args.InitialBranch = core.NewBranch(c.Repo, head.Name().Short())
+		args.InitialBranch = core.NewBranch(c.Repo, branchName)
 	} else {
 		args.Detached = true
 	}
@@ -230,17 +228,17 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 	return &args, nil
 }
 
-func HeadCommit(repo *core.Repo, args cli.Args) (plumbing.Hash, error) {
-	var headCommit plumbing.Hash
+func HeadCommit(repo *core.Repo, args cli.Args) (string, error) {
+	var headCommit string
 	if !args.Present() {
 		var head = core.Must(repo.Head())
-		headCommit = head.Hash()
+		headCommit = head
 	} else {
-		hash, err := repo.ResolveRevision(plumbing.Revision(args.First()))
+		hash, err := repo.ResolveRevision(context.Background(), args.First())
 		if err != nil {
-			return plumbing.ZeroHash, cli.Exit(fmt.Sprintf("invalid revision %s", args.First()), 1)
+			return "", cli.Exit(fmt.Sprintf("invalid revision %s", args.First()), 1)
 		}
-		headCommit = *hash
+		headCommit = hash
 	}
 	return headCommit, nil
 }
@@ -259,7 +257,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		fmt.Println("Choose what commits you want to include in this PR")
 		if !c.Repo.TryRebaseOntoSilently(
 			ctx,
-			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
+			previousArgs.Commits[len(previousArgs.Commits)-1],
 			previousArgs.AncestorBranch,
 			true,
 		) {
@@ -272,13 +270,13 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		fmt.Printf("Rebasing %d commits on top of %s/%s... ", len(previousArgs.Commits), core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName())
 		if !c.Repo.TryRebaseOntoSilently(
 			ctx,
-			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
+			previousArgs.Commits[len(previousArgs.Commits)-1],
 			previousArgs.AncestorBranch,
 			false,
 		) {
 			hashes := make([]string, len(previousArgs.Commits))
 			for i := range previousArgs.Commits {
-				hashes[i] = previousArgs.Commits[i].Hash.String()[0:6]
+				hashes[i] = previousArgs.Commits[i][0:6]
 			}
 			PrintFailure(nil)
 			return nil, cli.Exit(fmt.Errorf(
@@ -292,7 +290,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 	if err != nil {
 		return nil, err
 	}
-	headCommit := head.Hash()
+	headCommit := head
 	ancestor, commits, err := c.Repo.FindBranchingPoint(headCommit)
 
 	if err != nil {
@@ -315,7 +313,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.LocalPr, error) {
 
 	// The first commit is the child-most one.
-	lastCommit := args.Commits[0].Hash
+	lastCommit := args.Commits[0]
 	title, body, err := c.GetBodyAndTitle(ctx, in, args.Commits)
 	if err != nil {
 		return nil, fmt.Errorf("could not get the pull request body and title: %w", err)
@@ -338,12 +336,19 @@ func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.Lo
 	return localPr, err
 }
 
-func (c *create) GetBodyAndTitle(ctx context.Context, in io.Reader, commits []*object.Commit) (string, string, error) {
-	rawTitle, rawBody := c.getRawBodyAndTitle(commits)
+func (c *create) GetBodyAndTitle(ctx context.Context, in io.Reader, commits []string) (string, string, error) {
+	// Get commit messages for all commits
 	commitMessages := make([]string, len(commits))
-	for i, c := range commits {
-		commitMessages[i] = c.Message
+	for i, hash := range commits {
+		cmd := c.Repo.GitExec(ctx, "log --format=%%s -1 %s", hash)
+		output, err := cmd.Output()
+		if err != nil {
+			return "", "", fmt.Errorf("could not get commit message for %s: %w", hash, err)
+		}
+		commitMessages[i] = strings.TrimSpace(string(output))
 	}
+
+	rawTitle, rawBody := c.getRawBodyAndTitle(commitMessages)
 	storyService := story.NewStoryService(c.StoryFetcher, in)
 	title, body, err := storyService.EnrichBodyAndTitle(ctx, commitMessages, rawTitle, rawBody)
 	if err != nil {
@@ -352,29 +357,34 @@ func (c *create) GetBodyAndTitle(ctx context.Context, in io.Reader, commits []*o
 	return title, body, nil
 }
 
-func (c *create) getRawBodyAndTitle(commits []*object.Commit) (string, string) {
-	sort.Slice(commits, func(i, j int) bool {
-		return len(commits[i].Message) > len(commits[j].Message)
+func (c *create) getRawBodyAndTitle(commitMessages []string) (string, string) {
+	sort.Slice(commitMessages, func(i, j int) bool {
+		return len(commitMessages[i]) > len(commitMessages[j])
 	})
-	title, body, _ := strings.Cut(strings.TrimSpace(commits[0].Message), "\n")
+	title, body, _ := strings.Cut(strings.TrimSpace(commitMessages[0]), "\n")
 	return strings.TrimSpace(title), strings.TrimSpace(body)
 }
 
-func (c *create) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor core.Branch) {
-	c.Repo.CreateBranch(&config.Branch{
-		Name:   core.LocalBranchForPr(number),
-		Remote: core.RemoteBranchForPr(number),
-		Merge:  plumbing.NewBranchReferenceName(ancestor.RemoteName()),
-		Rebase: "true",
-	})
+func (c *create) createLocalBranchForPr(number int, hash string, ancestor core.Branch) {
+	// Create branch
+	branchName := core.LocalBranchForPr(number)
+	cmd := c.Repo.GitExec(context.Background(), "branch %s %s", branchName, hash)
+	if err := cmd.Run(); err != nil {
+		panic(fmt.Errorf("could not create branch: %w", err))
+	}
 
-	ref := plumbing.NewBranchReferenceName(core.LocalBranchForPr(number))
-	c.Repo.Storer.SetReference(plumbing.NewHashReference(ref, hash))
+	// Set tracking
+	cmd = c.Repo.GitExec(context.Background(),
+		"branch --set-upstream-to=%s/%s %s",
+		core.GetRemoteName(), ancestor.RemoteName(), branchName)
+	if err := cmd.Run(); err != nil {
+		panic(fmt.Errorf("could not set tracking: %w", err))
+	}
 }
 
 func (c *create) create(
 	ctx context.Context,
-	hash plumbing.Hash,
+	hash string,
 	ancestor core.Branch,
 	title string,
 	body string,
@@ -397,7 +407,7 @@ func (c *create) create(
 
 func (c *create) createOnce(
 	ctx context.Context,
-	hash plumbing.Hash,
+	hash string,
 	ancestor core.Branch,
 	title string,
 	body string,

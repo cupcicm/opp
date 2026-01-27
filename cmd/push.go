@@ -43,7 +43,7 @@ func push(ctx context.Context, repo *core.Repo, pr *core.LocalPr) error {
 	if ancestor.IsPr() {
 		ancestorRemoteTip := core.Must(repo.GetLocalTip(ancestor))
 		prLocalTip := core.Must(repo.GetLocalTip(pr))
-		isAncestor, _ := ancestorRemoteTip.IsAncestor(prLocalTip)
+		isAncestor := repo.IsAncestor(ctx, ancestorRemoteTip, prLocalTip)
 		if !isAncestor {
 			return cli.Exit(fmt.Errorf(
 				"branch %s does not have branch %s in its history\nPlease run opp rebase",

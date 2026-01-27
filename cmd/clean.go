@@ -2,10 +2,9 @@ package cmd
 
 import (
 	"context"
-	"errors"
+	"strings"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/urfave/cli/v3"
 )
 
@@ -20,7 +19,7 @@ func CleanCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 			for _, pr := range localPrs {
 				pullRequests := gh(ctx).PullRequests()
 				_, err := repo.GetRemoteTip(&pr)
-				if errors.Is(err, plumbing.ErrReferenceNotFound) {
+				if err != nil && strings.Contains(err.Error(), "not found") {
 					// The remote tip does not exist anymore : it has been deleted on the github repo.
 					// Probably because the PR is either abandonned or merged.
 					repo.CleanupAfterMerge(ctx, &pr)

@@ -127,13 +127,16 @@ func (r *TestRepo) PrepareSource() {
 	wt := core.Must(r.Source.Worktree())
 	wt.Add("1")
 	hash := r.Commit("1")
-	core.Must(r.CreateRemote(&config.RemoteConfig{
+	_, err := r.Source.CreateRemote(&config.RemoteConfig{
 		Name: "origin",
 		URLs: []string{r.Paths.Destination},
-	}))
-	err := r.Push(context.Background(), hash, "master")
+	})
 	if err != nil {
 		panic(err)
+	}
+	err = r.Push(context.Background(), hash.String(), "master")
+	if err != nil {
+		panic(fmt.Errorf("Push failed: %w", err))
 	}
 	for i := 0; i < 5; i++ {
 		wt.Add(strconv.Itoa(i))
@@ -180,12 +183,12 @@ func (r *TestRepo) CreatePrAssertPrDetailsWithStories(t *testing.T, ref string, 
 func (r *TestRepo) MergePr(t *testing.T, pr *core.LocalPr) error {
 	tip := core.Must(r.GetLocalTip(pr))
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(pr.PrNumber, true)
-	r.GithubMock.PullRequestsMock.CallMerge(pr.PrNumber, tip.Hash.String())
+	r.GithubMock.PullRequestsMock.CallMerge(pr.PrNumber, tip)
 	err := r.Run("merge", fmt.Sprintf("pr/%d", pr.PrNumber))
 	if err != nil {
 		return err
 	}
-	return r.Push(context.Background(), tip.Hash, r.BaseBranch().RemoteName())
+	return r.Push(context.Background(), tip, r.BaseBranch().RemoteName())
 }
 
 type GithubMock struct {

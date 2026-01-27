@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/go-github/v56/github"
 	"github.com/urfave/cli/v3"
 )
@@ -130,7 +129,7 @@ func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
 	fmt.Printf("Merging %s... ", pr.LocalBranch())
 	merge, r, err := m.PullRequests.Merge(ctx, core.GetGithubOwner(), core.GetGithubRepoName(), pr.PrNumber, "",
 		&github.PullRequestOptions{
-			SHA:         tip.Hash.String(),
+			SHA:         tip,
 			MergeMethod: core.GetGithubMergeMethod(),
 		})
 	if r != nil && r.StatusCode == http.StatusConflict {
@@ -142,7 +141,7 @@ func (m *merger) Merge(ctx context.Context, pr *core.LocalPr) error {
 		return err
 	}
 	PrintSuccess()
-	pr.AddKnownTip(plumbing.NewHash(merge.GetSHA()))
+	pr.AddKnownTip(merge.GetSHA())
 	return nil
 }
 
