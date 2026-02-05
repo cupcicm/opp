@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/cupcicm/opp/core"
+	"github.com/cupcicm/opp/core/tests"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -112,5 +114,44 @@ func TestGetCurrentBranchName(t *testing.T) {
 	// Verify it matches go-git behavior
 	head3 := core.Must(repo3.Head())
 	assert.False(t, head3.Name().IsBranch(), "HEAD should not be on a branch when detached")
+}
+
+func TestGetRefHash(t *testing.T) {
+	r := tests.NewTestRepo(t)
+	ctx := context.Background()
+
+	// Test getting HEAD hash via refs/heads/master
+	masterHash, err := r.Repo.GetRefHash(ctx, "refs/heads/master")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, masterHash.String())
+	assert.Len(t, masterHash.String(), 40, "SHA should be 40 characters")
+
+	// Verify it matches go-git's Reference()
+	ref := core.Must(r.Repo.Reference(plumbing.NewBranchReferenceName("master"), true))
+	assert.Equal(t, ref.Hash(), masterHash, "GetRefHash should return same hash as Repository.Reference()")
+
+	// Test getting remote ref hash
+	remoteHash, err := r.Repo.GetRefHash(ctx, "refs/remotes/origin/master")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, remoteHash.String())
+
+	// Verify it matches go-git's Reference()
+	remoteRef := core.Must(r.Repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true))
+	assert.Equal(t, remoteRef.Hash(), remoteHash)
+
+	// Test non-existent reference
+	_, err = r.Repo.GetRefHash(ctx, "refs/heads/nonexistent")
+	assert.Error(t, err, "Should return error for non-existent ref")
+	assert.Contains(t, err.Error(), "not found")
+
+	// Create a PR branch and test it
+	pr := r.CreatePr(t, "HEAD", 1)
+	prHash, err := r.Repo.GetRefHash(ctx, "refs/heads/"+pr.LocalName())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, prHash.String())
+
+	// Verify matches go-git
+	prRef := core.Must(r.Repo.Reference(plumbing.NewBranchReferenceName(pr.LocalName()), true))
+	assert.Equal(t, prRef.Hash(), prHash)
 }
 
