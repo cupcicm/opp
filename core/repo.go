@@ -15,6 +15,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/storer"
 )
 
+var ErrReferenceNotFound = errors.New("reference not found")
+
 type Repo struct {
 	*git.Repository
 	s *StateStore
@@ -121,20 +123,20 @@ func (r *Repo) GetCommitsNotInBaseBranch(hash plumbing.Hash) ([]*object.Commit, 
 	if err != nil {
 		return nil, err
 	}
-	ref, err := r.Reference(
-		plumbing.NewRemoteReferenceName(GetRemoteName(), GetBaseBranch()),
-		true,
+	baseHash, err := r.GetRefHash(
+		context.Background(),
+		fmt.Sprintf("refs/remotes/%s/%s", GetRemoteName(), GetBaseBranch()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not find the tip of the base branch: %w", err)
 	}
-	base, err := r.Repository.CommitObject(ref.Hash())
+	base, err := r.Repository.CommitObject(baseHash)
 	if err != nil {
 		return nil, fmt.Errorf("could not find the commit for the tip of the base branch: %w", err)
 	}
 	mergeBase, err := commit.MergeBase(base)
 	if err != nil {
-		return nil, fmt.Errorf("no common ancestor between %s and %s", commit.Hash.String(), ref.Hash().String())
+		return nil, fmt.Errorf("no common ancestor between %s and %s", commit.Hash.String(), baseHash.String())
 	}
 	if len(mergeBase) != 1 {
 		return nil, fmt.Errorf("do not know how to deal with more than one merge base")
@@ -247,6 +249,20 @@ func (r *Repo) GetCurrentBranchName(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("HEAD is detached, not on a branch")
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+// GetRefHash returns the commit hash that a reference points to.
+// refName should be a full reference name like "refs/heads/main" or "refs/remotes/origin/main".
+// Returns an error if the reference doesn't exist.
+// This replaces the pattern: Repository.Reference(name, true).Hash()
+func (r *Repo) GetRefHash(ctx context.Context, refName string) (plumbing.Hash, error) {
+	cmd := r.GitExec(ctx, "rev-parse --verify %s", refName)
+	output, err := cmd.Output()
+	if err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("%w: %s", ErrReferenceNotFound, refName)
+	}
+	hashStr := strings.TrimSpace(string(output))
+	return plumbing.NewHash(hashStr), nil
 }
 
 func (r *Repo) Fetch(ctx context.Context) error {
@@ -393,7 +409,8 @@ func (r *Repo) GetBranch(name string) (Branch, error) {
 	if err == nil {
 		return NewLocalPr(r, pr), nil
 	}
-	_, err = r.Repository.Reference(plumbing.NewBranchReferenceName(name), true)
+	// Check if branch exists
+	_, err = r.GetRefHash(context.Background(), fmt.Sprintf("refs/heads/%s", name))
 	if err != nil {
 		return nil, err
 	}
@@ -401,19 +418,19 @@ func (r *Repo) GetBranch(name string) (Branch, error) {
 }
 
 func (r *Repo) GetLocalTip(b Branch) (*object.Commit, error) {
-	ref, err := r.Reference(plumbing.NewBranchReferenceName(b.LocalName()), true)
+	hash, err := r.GetRefHash(context.Background(), fmt.Sprintf("refs/heads/%s", b.LocalName()))
 	if err != nil {
 		return nil, err
 	}
-	return r.CommitObject(ref.Hash())
+	return r.CommitObject(hash)
 }
 
 func (r *Repo) GetRemoteTip(b Branch) (*object.Commit, error) {
-	ref, err := r.Reference(plumbing.NewRemoteReferenceName(GetRemoteName(), b.RemoteName()), true)
+	hash, err := r.GetRefHash(context.Background(), fmt.Sprintf("refs/remotes/%s/%s", GetRemoteName(), b.RemoteName()))
 	if err != nil {
 		return nil, err
 	}
-	return r.CommitObject(ref.Hash())
+	return r.CommitObject(hash)
 }
 
 func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {

@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/urfave/cli/v3"
 )
@@ -49,7 +48,7 @@ func RebaseCommand(repo *core.Repo) *cli.Command {
 // Return true when the current PR has been merged and does not actually exist anymore.
 func rebase(ctx context.Context, repo *core.Repo, pr *core.LocalPr, first bool) (bool, error) {
 	_, err := repo.GetLocalTip(pr)
-	if err == plumbing.ErrReferenceNotFound {
+	if errors.Is(err, core.ErrReferenceNotFound) {
 		// The branch has been merged and deleted.
 		repo.CleanupAfterMerge(ctx, pr)
 		return true, nil
