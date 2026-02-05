@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -181,8 +182,11 @@ func (r *Repo) FindBranchingPoint(headCommit plumbing.Hash) (Branch, []*object.C
 }
 
 func (r *Repo) PrForHead() (*LocalPr, bool) {
-	head := Must(r.Repository.Head())
-	branchName := head.Name().Short()
+	branchName, err := r.GetCurrentBranchName(context.Background())
+	if err != nil {
+		// HEAD is detached, not on a branch
+		return nil, false
+	}
 	number, errNotAPr := ExtractPrNumber(branchName)
 	if errNotAPr != nil {
 		return nil, false
@@ -218,6 +222,31 @@ func (r *Repo) GitExec(ctx context.Context, format string, args ...any) *exec.Cm
 	cmd := exec.CommandContext(ctx, "bash", "-c", "git "+fmt.Sprintf(format, args...))
 	cmd.Dir = r.Path()
 	return cmd
+}
+
+// GetHeadHash returns the SHA of the current HEAD commit.
+// This replaces the pattern: Repository.Head().Hash()
+func (r *Repo) GetHeadHash(ctx context.Context) (plumbing.Hash, error) {
+	cmd := r.GitExec(ctx, "rev-parse HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("failed to get HEAD hash: %w", err)
+	}
+	hashStr := strings.TrimSpace(string(output))
+	return plumbing.NewHash(hashStr), nil
+}
+
+// GetCurrentBranchName returns the name of the current branch.
+// Returns an error if HEAD is detached (not on a branch).
+// This replaces the pattern: head.Name().Short() and checking head.Name().IsBranch()
+func (r *Repo) GetCurrentBranchName(ctx context.Context) (string, error) {
+	cmd := r.GitExec(ctx, "symbolic-ref --short HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		// symbolic-ref fails when HEAD is detached
+		return "", fmt.Errorf("HEAD is detached, not on a branch")
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 func (r *Repo) Fetch(ctx context.Context) error {
@@ -348,18 +377,15 @@ func (r *Repo) NoLocalChanges(ctx context.Context) bool {
 }
 
 func (r *Repo) CurrentBranch() (Branch, error) {
-	head, err := r.Head()
+	branchName, err := r.GetCurrentBranchName(context.Background())
 	if err != nil {
-		return nil, err
-	}
-	if !head.Name().IsBranch() {
 		return nil, errors.New("works only when on a branch")
 	}
-	pr, err := ExtractPrNumber(head.Name().Short())
+	pr, err := ExtractPrNumber(branchName)
 	if err == nil {
 		return NewLocalPr(r, pr), nil
 	}
-	return NewBranch(r, head.Name().Short()), nil
+	return NewBranch(r, branchName), nil
 }
 
 func (r *Repo) GetBranch(name string) (Branch, error) {

@@ -202,9 +202,12 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 		return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
 	}
 	shouldCheckout := cmd.Bool("checkout")
-	head := core.Must(c.Repo.Head())
 
-	if !head.Name().IsBranch() {
+	// Check if HEAD is on a branch
+	branchName, err := c.Repo.GetCurrentBranchName(ctx)
+	isOnBranch := err == nil
+
+	if !isOnBranch {
 		shouldCheckout = true
 	}
 	args := args{
@@ -215,9 +218,9 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 		DraftPr:     cmd.Bool("draft"),
 		Extract:     extract,
 	}
-	if head.Name().IsBranch() {
+	if isOnBranch {
 		args.Detached = false
-		args.InitialBranch = core.NewBranch(c.Repo, head.Name().Short())
+		args.InitialBranch = core.NewBranch(c.Repo, branchName)
 	} else {
 		args.Detached = true
 	}
@@ -233,8 +236,7 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 func HeadCommit(repo *core.Repo, args cli.Args) (plumbing.Hash, error) {
 	var headCommit plumbing.Hash
 	if !args.Present() {
-		var head = core.Must(repo.Head())
-		headCommit = head.Hash()
+		headCommit = core.Must(repo.GetHeadHash(context.Background()))
 	} else {
 		hash, err := repo.ResolveRevision(plumbing.Revision(args.First()))
 		if err != nil {
@@ -288,11 +290,10 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		}
 		PrintSuccess()
 	}
-	head, err := c.Repo.Head()
+	headCommit, err := c.Repo.GetHeadHash(ctx)
 	if err != nil {
 		return nil, err
 	}
-	headCommit := head.Hash()
 	ancestor, commits, err := c.Repo.FindBranchingPoint(headCommit)
 
 	if err != nil {
