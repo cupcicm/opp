@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"os"
 	"path"
 	"strconv"
@@ -60,6 +61,12 @@ func NewTestRepo(t *testing.T) *TestRepo {
 	os.Mkdir(destPath, 0755)
 	source := core.Must(git.PlainInit(sourcePath, false))
 	github := core.Must(git.PlainInit(destPath, true))
+	sourceConfig := core.Must(source.Config())
+	sourceConfig.Raw.Section("core").SetOption("hooksPath", "")
+	require.NoError(t, source.SetConfig(sourceConfig))
+	githubConfig := core.Must(github.Config())
+	githubConfig.Raw.Section("core").SetOption("hooksPath", "")
+	require.NoError(t, github.SetConfig(githubConfig))
 
 	repo := core.NewRepoFromGitRepo(source)
 	mock := &GithubMock{
