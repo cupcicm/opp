@@ -1,6 +1,7 @@
 package cmd_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/cupcicm/opp/cmd"
@@ -14,7 +15,7 @@ func TestCannotMergeIfDependentPRs(t *testing.T) {
 
 	r.CreatePr(t, "HEAD^", 2)
 	pr3 := r.CreatePr(t, "HEAD", 3)
-	r.Repo.Checkout(pr3)
+	r.Repo.Checkout(context.Background(),pr3)
 
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(2, true)
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(3, true)
@@ -27,7 +28,7 @@ func TestMergeKeepsTrackOfAncestorTips(t *testing.T) {
 
 	pr2 := r.CreatePr(t, "HEAD^", 2)
 	pr3 := r.CreatePr(t, "HEAD", 3)
-	r.Repo.Checkout(pr2)
+	r.Repo.Checkout(context.Background(),pr2)
 
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(2, true)
 	r.GithubMock.PullRequestsMock.CallMerge(2, "8f4ca5d979bc19b7c836655a6432d690f78316af")
@@ -54,7 +55,7 @@ func TestMergeWaitsForMergeability(t *testing.T) {
 
 	pr2 := r.CreatePr(t, "HEAD^", 2)
 	pr3 := r.CreatePr(t, "HEAD", 3)
-	r.Repo.Checkout(pr2)
+	r.Repo.Checkout(context.Background(),pr2)
 
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeabilityBeingEvaluated(2)
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeabilityBeingEvaluated(2)

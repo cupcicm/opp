@@ -155,3 +155,64 @@ func TestGetRefHash(t *testing.T) {
 	assert.Equal(t, prRef.Hash(), prHash)
 }
 
+func TestGetHeadRef(t *testing.T) {
+	ctx := context.Background()
+	r := tests.NewTestRepo(t)
+
+	// On a branch: returns branch name
+	currentBranch, err := r.Repo.GetCurrentBranchName(ctx)
+	assert.NoError(t, err)
+
+	headRef, err := r.Repo.GetHeadRef(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, currentBranch, headRef)
+
+	// Detached HEAD: returns commit hash
+	hash := core.Must(r.Repo.GetHeadHash(ctx))
+	exec.Command("git", "-C", r.Path(), "checkout", "--detach", "HEAD").Run()
+
+	headRef, err = r.Repo.GetHeadRef(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, hash.String(), headRef)
+}
+
+func TestCheckoutRef(t *testing.T) {
+	ctx := context.Background()
+	r := tests.NewTestRepo(t)
+
+	// Checkout a new branch by name
+	exec.Command("git", "-C", r.Path(), "branch", "test-branch").Run()
+	err := r.Repo.CheckoutRef(ctx, "test-branch")
+	assert.NoError(t, err)
+	branch, err := r.Repo.GetCurrentBranchName(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, "test-branch", branch)
+
+	// Checkout by commit hash (detached)
+	hash := core.Must(r.Repo.GetHeadHash(ctx))
+	r.Repo.CheckoutRef(ctx, "master")
+	err = r.Repo.CheckoutRef(ctx, hash.String())
+	assert.NoError(t, err)
+	_, err = r.Repo.GetCurrentBranchName(ctx)
+	assert.Error(t, err, "Should be in detached HEAD")
+}
+
+func TestDeleteLocalAndRemoteBranch(t *testing.T) {
+	ctx := context.Background()
+	r := tests.NewTestRepo(t)
+
+	// Create a PR branch
+	pr := r.CreatePr(t, "HEAD", 1)
+
+	// Verify the branch exists
+	_, err := r.Repo.GetRefHash(ctx, "refs/heads/"+pr.LocalBranch())
+	assert.NoError(t, err)
+
+	// Delete it
+	r.Repo.DeleteLocalAndRemoteBranch(ctx, pr)
+
+	// Verify the local branch is gone
+	_, err = r.Repo.GetRefHash(ctx, "refs/heads/"+pr.LocalBranch())
+	assert.ErrorIs(t, err, core.ErrReferenceNotFound)
+}
+

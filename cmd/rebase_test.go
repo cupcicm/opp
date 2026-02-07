@@ -11,7 +11,6 @@ import (
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/tests"
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,12 +24,12 @@ func TestRebaseCleansDependentBranches(t *testing.T) {
 	tip := core.Must(r.GetLocalTip(pr2))
 	assert.Nil(t, r.Push(context.Background(), tip.Hash, "master"))
 
-	r.Checkout(pr3)
+	r.Checkout(context.Background(),pr3)
 
 	assert.Nil(t, r.Run("rebase"))
 
-	_, err := r.Source.Reference(plumbing.NewBranchReferenceName(pr2.LocalBranch()), true)
-	assert.Equal(t, plumbing.ErrReferenceNotFound, err)
+	_, err := r.Repo.GetRefHash(context.Background(), "refs/heads/"+pr2.LocalBranch())
+	assert.ErrorIs(t, err, core.ErrReferenceNotFound)
 
 	// Reload PR3 state.
 	pr3 = core.NewLocalPr(r.Repo, 3)
@@ -45,13 +44,13 @@ func TestRebaseFindsPreviousTips(t *testing.T) {
 	pr2 := r.CreatePr(t, "HEAD^", 2)
 	pr3 := r.CreatePr(t, "HEAD", 3)
 
-	r.Checkout(pr2)
+	r.Checkout(context.Background(),pr2)
 
 	os.WriteFile(path.Join(r.Path(), "3"), []byte("amended 3"), 0644)
 	core.Must(r.Source.Worktree()).Add("3")
 	r.RewriteLastCommit("amended 3")
 	assert.NoError(t, r.Run("push"))
-	r.Checkout(pr3)
+	r.Checkout(context.Background(),pr3)
 
 	// The status now is that pr/3 depends on an old version of pr/2
 	// the commit in pr/2 has been amended to a new one.
@@ -64,7 +63,7 @@ func TestRebaseFindsPreviousTips(t *testing.T) {
 		c := core.Must(commits.Next())
 		assert.Equal(t, expectedCommitMessages[i], strings.TrimSpace(c.Message))
 	}
-	r.Checkout(pr2)
+	r.Checkout(context.Background(),pr2)
 	pr2Commits := core.Must(r.Log(&git.LogOptions{}))
 	for i := 0; i < 4; i++ {
 		c := core.Must(pr2Commits.Next())
@@ -78,13 +77,13 @@ func TestRebaseAbandonsGracefully(t *testing.T) {
 	pr2 := r.CreatePr(t, "HEAD^", 2)
 	pr3 := r.CreatePr(t, "HEAD", 3)
 
-	r.Checkout(pr2)
+	r.Checkout(context.Background(),pr2)
 
 	os.WriteFile(path.Join(r.Path(), "4"), []byte("conflicts with 4"), 0644)
 	core.Must(r.Source.Worktree()).Add("4")
 	r.RewriteLastCommit("conflicts with 4")
 	r.MergePr(t, pr2)
-	r.Checkout(pr3)
+	r.Checkout(context.Background(),pr3)
 	fmt.Println(r.Path())
 
 	// The new version of commit 3 modifies file 4, so it will conflict with commit 4
@@ -104,13 +103,13 @@ func TestRebaseFindsTipWhenMerged(t *testing.T) {
 	pr2 := r.CreatePr(t, "HEAD^", 2)
 	pr3 := r.CreatePr(t, "HEAD", 3)
 
-	r.Checkout(pr2)
+	r.Checkout(context.Background(),pr2)
 
 	os.WriteFile(path.Join(r.Path(), "3"), []byte("amended 3"), 0644)
 	core.Must(r.Source.Worktree()).Add("3")
 	r.RewriteLastCommit("amended 3")
 	r.MergePr(t, pr2)
-	r.Checkout(pr3)
+	r.Checkout(context.Background(),pr3)
 	fmt.Println(r.Path())
 
 	// The status now is that pr/3 depends on an old version of pr/2

@@ -35,9 +35,9 @@ func RebaseCommand(repo *core.Repo) *cli.Command {
 				return err
 			}
 			if hasBeenMerged {
-				repo.Checkout(repo.BaseBranch())
+				repo.Checkout(ctx, repo.BaseBranch())
 			} else {
-				repo.Checkout(pr)
+				repo.Checkout(ctx, pr)
 			}
 			return nil
 		},
@@ -84,7 +84,7 @@ func rebaseOnBaseBranch(
 		fmt.Printf("Rebasing dependent PR %s...\n", pr.LocalBranch())
 	}
 
-	if err := repo.Checkout(pr); err != nil {
+	if err := repo.Checkout(ctx, pr); err != nil {
 		return false, fmt.Errorf("error during checkout: %w", err)
 	}
 	base := repo.BaseBranch()
@@ -136,7 +136,7 @@ func rebaseOnDependentPr(
 	} else {
 		fmt.Println()
 	}
-	if err := repo.Checkout(pr); err != nil {
+	if err := repo.Checkout(ctx, pr); err != nil {
 		return false, fmt.Errorf("error during checkout: %w", err)
 	}
 	// Try to rebase silently once.

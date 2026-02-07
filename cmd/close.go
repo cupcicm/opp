@@ -19,7 +19,7 @@ func CloseCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				return err
 			}
 			if currentBranch {
-				repo.Checkout(repo.BaseBranch())
+				repo.Checkout(ctx, repo.BaseBranch())
 			}
 			// Deleting the remote branch closes the PR.
 			fmt.Printf("Closing %s... ", pr.LocalBranch())
