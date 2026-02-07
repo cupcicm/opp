@@ -48,7 +48,7 @@ func TestRebaseFindsPreviousTips(t *testing.T) {
 	r.Checkout(pr2)
 
 	os.WriteFile(path.Join(r.Path(), "3"), []byte("amended 3"), 0644)
-	r.Worktree().Add("3")
+	core.Must(r.Source.Worktree()).Add("3")
 	r.RewriteLastCommit("amended 3")
 	assert.NoError(t, r.Run("push"))
 	r.Checkout(pr3)
@@ -81,7 +81,7 @@ func TestRebaseAbandonsGracefully(t *testing.T) {
 	r.Checkout(pr2)
 
 	os.WriteFile(path.Join(r.Path(), "4"), []byte("conflicts with 4"), 0644)
-	r.Worktree().Add("4")
+	core.Must(r.Source.Worktree()).Add("4")
 	r.RewriteLastCommit("conflicts with 4")
 	r.MergePr(t, pr2)
 	r.Checkout(pr3)
@@ -107,7 +107,7 @@ func TestRebaseFindsTipWhenMerged(t *testing.T) {
 	r.Checkout(pr2)
 
 	os.WriteFile(path.Join(r.Path(), "3"), []byte("amended 3"), 0644)
-	r.Worktree().Add("3")
+	core.Must(r.Source.Worktree()).Add("3")
 	r.RewriteLastCommit("amended 3")
 	r.MergePr(t, pr2)
 	r.Checkout(pr3)

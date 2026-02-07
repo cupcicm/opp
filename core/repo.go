@@ -19,24 +19,53 @@ var ErrReferenceNotFound = errors.New("reference not found")
 
 type Repo struct {
 	*git.Repository
-	s *StateStore
+	s    *StateStore
+	path string
 }
 
 func Current() *Repo {
-	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
-		// Walk back the directories to find the .git folder.
-		DetectDotGit:          true,
-		EnableDotGitCommonDir: false,
-	})
+	cwd, err := os.Getwd()
 	if err != nil {
-		panic("You are not inside a git repository")
+		panic("could not get current directory")
 	}
-	return NewRepoFromGitRepo(repo)
+	return NewRepo(cwd)
 }
 
+// NewRepo creates a Repo rooted at the given folder.
+// It walks up the directory tree to find the .git folder.
+func NewRepo(folder string) *Repo {
+	dir := folder
+	for {
+		if _, err := os.Stat(path.Join(dir, ".git")); err == nil {
+			repo, err := git.PlainOpen(dir)
+			if err != nil {
+				panic(fmt.Sprintf("could not open git repository at %s: %v", dir, err))
+			}
+			r := &Repo{
+				Repository: repo,
+				path:       dir,
+			}
+			r.s = NewStateStore(r)
+			return r
+		}
+		parent := path.Dir(dir)
+		if parent == dir {
+			panic("not inside a git repository")
+		}
+		dir = parent
+	}
+}
+
+// NewRepoFromGitRepo creates a Repo from an existing go-git Repository.
+// Used in tests.
 func NewRepoFromGitRepo(repo *git.Repository) *Repo {
+	w, err := repo.Worktree()
+	if err != nil {
+		panic("could not get worktree")
+	}
 	r := &Repo{
 		Repository: repo,
+		path:       w.Filesystem.Root(),
 	}
 	r.s = NewStateStore(r)
 	return r
@@ -50,16 +79,8 @@ func (r *Repo) StateStore() *StateStore {
 	return r.s
 }
 
-func (r *Repo) Worktree() *git.Worktree {
-	w, err := r.Repository.Worktree()
-	if err == git.ErrIsBareRepository {
-		panic("cannot work on bare repos")
-	}
-	return w
-}
-
 func (r *Repo) Path() string {
-	return r.Worktree().Filesystem.Root()
+	return r.path
 }
 
 func (r *Repo) DotOpDir() string {
