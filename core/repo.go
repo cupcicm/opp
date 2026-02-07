@@ -221,24 +221,31 @@ func (r *Repo) BaseBranch() Branch {
 	return NewBranch(r, GetBaseBranch())
 }
 
-func (r *Repo) Checkout(branch Branch) error {
-	cmd := r.GitExec(context.Background(), "checkout %s", branch.LocalName())
+func (r *Repo) Checkout(ctx context.Context, branch Branch) error {
+	return r.CheckoutRef(ctx, branch.LocalName())
+}
+
+// CheckoutRef checks out the given ref (branch name or commit hash).
+func (r *Repo) CheckoutRef(ctx context.Context, ref string) error {
+	cmd := r.GitExec(ctx, "checkout %s", ref)
 	cmd.Stderr = nil
 	cmd.Stdout = nil
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
 
-func (r *Repo) CheckoutRef(ref *plumbing.Reference) error {
-	checkout := ref.Hash().String()
-	if ref.Name().IsBranch() {
-		checkout = ref.Name().Short()
+// GetHeadRef returns a string representing the current HEAD.
+// If on a branch, returns the branch name. If detached, returns the commit hash.
+func (r *Repo) GetHeadRef(ctx context.Context) (string, error) {
+	branchName, err := r.GetCurrentBranchName(ctx)
+	if err == nil {
+		return branchName, nil
 	}
-	cmd := r.GitExec(context.Background(), "checkout %s", checkout)
-	cmd.Stderr = nil
-	cmd.Stdout = nil
-	cmd.Stdin = os.Stdin
-	return cmd.Run()
+	hash, err := r.GetHeadHash(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get HEAD ref: %w", err)
+	}
+	return hash.String(), nil
 }
 
 func (r *Repo) GitExec(ctx context.Context, format string, args ...any) *exec.Cmd {
@@ -477,15 +484,18 @@ func (r *Repo) CleanupMultiple(ctx context.Context, toclean []*LocalPr, others [
 			}
 		}
 	}
+	currentBranch, _ := r.GetCurrentBranchName(ctx)
 	for _, deleting := range toclean {
+		if deleting.LocalName() == currentBranch {
+			r.Checkout(ctx, r.BaseBranch())
+		}
 		r.DeleteLocalAndRemoteBranch(ctx, deleting)
 		deleting.DeleteState()
 	}
 }
 
 func (r *Repo) DeleteLocalAndRemoteBranch(ctx context.Context, branch Branch) error {
-	r.Repository.DeleteBranch(branch.LocalName())
-	r.Storer.RemoveReference(plumbing.NewBranchReferenceName(branch.LocalName()))
+	r.GitExec(ctx, "branch -D %s", branch.LocalName()).Run()
 	return r.DeleteRemoteBranch(ctx, branch)
 }
 

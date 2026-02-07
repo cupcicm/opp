@@ -60,7 +60,7 @@ func MergeCommand(repo *core.Repo, gh func(context.Context) core.Gh) *cli.Comman
 				return cli.Exit("could not merge", 1)
 			}
 			if mergingCurrentBranch {
-				repo.Checkout(repo.BaseBranch())
+				repo.Checkout(mergeContext, repo.BaseBranch())
 			}
 			repo.CleanupAfterMerge(mergeContext, pr)
 			return nil

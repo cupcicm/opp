@@ -87,7 +87,7 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			initialRef, err := repo.Head()
+			initialRef, err := repo.GetHeadRef(ctx)
 			if err != nil {
 				return err
 			}
@@ -99,7 +99,7 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 			if args.NeedsRebase {
 				newArgs, err := pr.RebasePrCommits(ctx, args)
 				if err != nil {
-					repo.CheckoutRef(initialRef)
+					repo.CheckoutRef(ctx, initialRef)
 					return err
 				}
 				args = newArgs
@@ -111,7 +111,7 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 			if args.Extract && !args.Detached {
 				// We need to remove the commits we used to make the PR from the branch
 				// we were on before.
-				err := repo.Checkout(args.InitialBranch)
+				err := repo.Checkout(ctx, args.InitialBranch)
 				if err != nil {
 					return err
 				}
@@ -124,9 +124,9 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 			}
 
 			if args.CheckoutPr {
-				return repo.Checkout(localPr)
+				return repo.Checkout(ctx, localPr)
 			}
-			return repo.CheckoutRef(initialRef)
+			return repo.CheckoutRef(ctx, initialRef)
 		},
 	}
 
