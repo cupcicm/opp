@@ -97,7 +97,7 @@ func (r *Repo) Push(ctx context.Context, hash string, branch string) error {
 		fmt.Errorf("push to %s too slow, increase github.timeout", GetRemoteName()),
 	)
 	defer cancel()
-	cmd := r.GitExec(ctx, "push --force %s %s:refs/heads/%s", GetRemoteName(), hash, branch)
+	cmd := r.GitExec(ctx, "%s --force %s %s:refs/heads/%s", GetPushCommand(), GetRemoteName(), hash, branch)
 	return cmd.Run()
 }
 
@@ -512,7 +512,7 @@ func (r *Repo) DeleteRemoteBranch(ctx context.Context, branch Branch) error {
 		fmt.Errorf("push to %s too slow, increase github.timeout", GetRemoteName()),
 	)
 	defer cancel()
-	cmd := r.GitExec(ctx, "push %s :%s", GetRemoteName(), branch.RemoteName())
+	cmd := r.GitExec(ctx, "%s %s :%s", GetPushCommand(), GetRemoteName(), branch.RemoteName())
 	return cmd.Run()
 }
 
