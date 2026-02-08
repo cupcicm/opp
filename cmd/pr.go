@@ -237,11 +237,11 @@ func HeadCommit(repo *core.Repo, args cli.Args) (string, error) {
 	if !args.Present() {
 		return repo.GetHeadHash(context.Background())
 	}
-	hash, err := repo.ResolveRevision(plumbing.Revision(args.First()))
+	hash, err := repo.GetRefHash(context.Background(), args.First())
 	if err != nil {
 		return "", cli.Exit(fmt.Sprintf("invalid revision %s", args.First()), 1)
 	}
-	return hash.String(), nil
+	return hash, nil
 }
 
 // If the user wants to rebase the commits in this PR on another branch, we try to run the rebase
