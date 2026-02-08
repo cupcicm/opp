@@ -38,9 +38,9 @@ func TestCanCreatePRWhenNotOnBranch(t *testing.T) {
 		assert.Equal(t, "master", ancestor.LocalName())
 	}
 	prTip := core.Must(r.Repo.GetLocalTip(localPr))
-	commits := core.Must(r.Repo.GetCommitsNotInBaseBranch(prTip.Hash))
+	commits := core.Must(r.Repo.GetCommitsNotInBaseBranch(prTip))
 	fmt.Println("pr")
-	fmt.Println(prTip.Hash.String())
+	fmt.Println(prTip)
 	// There are 5 commits prepared in the test repo. We removed 2 by detaching to HEAD^^.
 	// There should be 3 left.
 	assert.Equal(t, 3, len(commits))
@@ -58,7 +58,7 @@ func TestCanChangePrAncestor(t *testing.T) {
 		assert.Equal(t, "master", ancestor.LocalName())
 	}
 	prTip := core.Must(r.Repo.GetLocalTip(rebasedOnMaster))
-	commits := core.Must(r.Repo.GetCommitsNotInBaseBranch(prTip.Hash))
+	commits := core.Must(r.Repo.GetCommitsNotInBaseBranch(prTip))
 	// From HEAD^ to HEAD there is only 1 commit.
 	assert.Equal(t, 1, len(commits))
 }

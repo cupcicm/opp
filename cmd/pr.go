@@ -118,7 +118,7 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 				if !repo.TryRebaseCurrentBranchSilently(ctx, localPr) {
 					return fmt.Errorf("problem while rebasing %s on %s\n", args.InitialBranch.LocalName(), localPr.LocalName())
 				}
-				if !repo.TryLocalRebaseOntoSilently(ctx, args.Commits[0].Hash, args.Commits[len(args.Commits)-1].Hash) {
+				if !repo.TryLocalRebaseOntoSilently(ctx, args.Commits[0].Hash.String(), args.Commits[len(args.Commits)-1].Hash.String()) {
 					return fmt.Errorf("problem while extracting PR commits from %s\n", args.InitialBranch.LocalName())
 				}
 			}
@@ -198,7 +198,7 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 		), 1)
 	}
 	tip := core.Must(c.Repo.GetLocalTip(ancestor))
-	if ancestor.IsPr() && tip.Hash == headCommit {
+	if ancestor.IsPr() && tip == headCommit {
 		return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
 	}
 	shouldCheckout := cmd.Bool("checkout")
@@ -233,18 +233,15 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 	return &args, nil
 }
 
-func HeadCommit(repo *core.Repo, args cli.Args) (plumbing.Hash, error) {
-	var headCommit plumbing.Hash
+func HeadCommit(repo *core.Repo, args cli.Args) (string, error) {
 	if !args.Present() {
-		headCommit = core.Must(repo.GetHeadHash(context.Background()))
-	} else {
-		hash, err := repo.ResolveRevision(plumbing.Revision(args.First()))
-		if err != nil {
-			return plumbing.ZeroHash, cli.Exit(fmt.Sprintf("invalid revision %s", args.First()), 1)
-		}
-		headCommit = *hash
+		return repo.GetHeadHash(context.Background())
 	}
-	return headCommit, nil
+	hash, err := repo.ResolveRevision(plumbing.Revision(args.First()))
+	if err != nil {
+		return "", cli.Exit(fmt.Sprintf("invalid revision %s", args.First()), 1)
+	}
+	return hash.String(), nil
 }
 
 // If the user wants to rebase the commits in this PR on another branch, we try to run the rebase
@@ -261,7 +258,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		fmt.Println("Choose what commits you want to include in this PR")
 		if !c.Repo.TryRebaseOntoSilently(
 			ctx,
-			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
+			previousArgs.Commits[len(previousArgs.Commits)-1].Hash.String(),
 			previousArgs.AncestorBranch,
 			true,
 		) {
@@ -274,7 +271,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		fmt.Printf("Rebasing %d commits on top of %s/%s... ", len(previousArgs.Commits), core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName())
 		if !c.Repo.TryRebaseOntoSilently(
 			ctx,
-			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
+			previousArgs.Commits[len(previousArgs.Commits)-1].Hash.String(),
 			previousArgs.AncestorBranch,
 			false,
 		) {
@@ -316,7 +313,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.LocalPr, error) {
 
 	// The first commit is the child-most one.
-	lastCommit := args.Commits[0].Hash
+	lastCommit := args.Commits[0].Hash.String()
 	title, body, err := c.GetBodyAndTitle(ctx, in, args.Commits)
 	if err != nil {
 		return nil, fmt.Errorf("could not get the pull request body and title: %w", err)
@@ -361,7 +358,7 @@ func (c *create) getRawBodyAndTitle(commits []*object.Commit) (string, string) {
 	return strings.TrimSpace(title), strings.TrimSpace(body)
 }
 
-func (c *create) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor core.Branch) {
+func (c *create) createLocalBranchForPr(number int, hash string, ancestor core.Branch) {
 	c.Repo.CreateBranch(&config.Branch{
 		Name:   core.LocalBranchForPr(number),
 		Remote: core.RemoteBranchForPr(number),
@@ -370,12 +367,12 @@ func (c *create) createLocalBranchForPr(number int, hash plumbing.Hash, ancestor
 	})
 
 	ref := plumbing.NewBranchReferenceName(core.LocalBranchForPr(number))
-	c.Repo.Storer.SetReference(plumbing.NewHashReference(ref, hash))
+	c.Repo.Storer.SetReference(plumbing.NewHashReference(ref, plumbing.NewHash(hash)))
 }
 
 func (c *create) create(
 	ctx context.Context,
-	hash plumbing.Hash,
+	hash string,
 	ancestor core.Branch,
 	title string,
 	body string,
@@ -398,7 +395,7 @@ func (c *create) create(
 
 func (c *create) createOnce(
 	ctx context.Context,
-	hash plumbing.Hash,
+	hash string,
 	ancestor core.Branch,
 	title string,
 	body string,
