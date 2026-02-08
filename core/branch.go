@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-git/go-git/v5/plumbing"
 	"golang.org/x/exp/slices"
 )
 
@@ -111,11 +110,11 @@ func (b *LocalPr) AncestorTips() []string {
 
 func (b *LocalPr) RememberCurrentTip() {
 	tip := Must(b.Repo.GetLocalTip(b))
-	b.AddKnownTip(tip.Hash)
+	b.AddKnownTip(tip)
 }
 
-func (b *LocalPr) AddKnownTip(tip plumbing.Hash) {
-	b.state.KnownTips = append(b.state.KnownTips, tip.String())
+func (b *LocalPr) AddKnownTip(tip string) {
+	b.state.KnownTips = append(b.state.KnownTips, tip)
 	b.Repo.StateStore().SaveBranchState(b, b.state)
 }
 
@@ -170,7 +169,7 @@ func (b *LocalPr) Push(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("PR %s has no local branch", b.LocalBranch())
 	}
-	return b.Repo.Push(ctx, tip.Hash, b.RemoteBranch())
+	return b.Repo.Push(ctx, tip, b.RemoteBranch())
 }
 
 var ErrNotAPrBranch = errors.New("not a pr branch")

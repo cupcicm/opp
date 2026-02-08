@@ -138,7 +138,7 @@ func (r *TestRepo) PrepareSource() {
 		Name: "origin",
 		URLs: []string{r.Paths.Destination},
 	}))
-	err := r.Push(context.Background(), hash, "master")
+	err := r.Push(context.Background(), hash.String(), "master")
 	if err != nil {
 		panic(err)
 	}
@@ -187,12 +187,12 @@ func (r *TestRepo) CreatePrAssertPrDetailsWithStories(t *testing.T, ref string, 
 func (r *TestRepo) MergePr(t *testing.T, pr *core.LocalPr) error {
 	tip := core.Must(r.GetLocalTip(pr))
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(pr.PrNumber, true)
-	r.GithubMock.PullRequestsMock.CallMerge(pr.PrNumber, tip.Hash.String())
+	r.GithubMock.PullRequestsMock.CallMerge(pr.PrNumber, tip)
 	err := r.Run("merge", fmt.Sprintf("pr/%d", pr.PrNumber))
 	if err != nil {
 		return err
 	}
-	return r.Push(context.Background(), tip.Hash, r.BaseBranch().RemoteName())
+	return r.Push(context.Background(), tip, r.BaseBranch().RemoteName())
 }
 
 type GithubMock struct {

@@ -111,36 +111,43 @@ func (r *Repo) AllPrs(ctx context.Context) []LocalPr {
 	return prs
 }
 
-func (r *Repo) Push(ctx context.Context, hash plumbing.Hash, branch string) error {
+func (r *Repo) Push(ctx context.Context, hash string, branch string) error {
 	ctx, cancel := context.WithTimeoutCause(
 		ctx, GetGithubTimeout(),
 		fmt.Errorf("push to %s too slow, increase github.timeout", GetRemoteName()),
 	)
 	defer cancel()
-	cmd := r.GitExec(ctx, "push --force %s %s:refs/heads/%s", GetRemoteName(), hash.String(), branch)
+	cmd := r.GitExec(ctx, "push --force %s %s:refs/heads/%s", GetRemoteName(), hash, branch)
 	return cmd.Run()
 }
 
-func (r *Repo) AllLocalPrs() (map[int]plumbing.Hash, error) {
-	iter, err := r.Repository.Branches()
+func (r *Repo) AllLocalPrs() (map[int]string, error) {
+	cmd := r.GitExec(context.Background(), "for-each-ref '--format=%%(refname:short) %%(objectname)' refs/heads/pr/")
+	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("could not iter branches: %w", err)
+		return nil, fmt.Errorf("could not list branches: %w", err)
 	}
-	result := make(map[int]plumbing.Hash)
-	iter.ForEach(func(ref *plumbing.Reference) error {
-		pr, err := ExtractPrNumber(ref.Name().Short())
-		if err == nil {
-			result[pr] = ref.Hash()
+	result := make(map[int]string)
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line == "" {
+			continue
 		}
-		return nil
-	})
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		pr, err := ExtractPrNumber(parts[0])
+		if err == nil {
+			result[pr] = parts[1]
+		}
+	}
 	return result, nil
 }
 
 // Returns all of the commits between the given hash
 // and its merge-base with the base branch of the repository
-func (r *Repo) GetCommitsNotInBaseBranch(hash plumbing.Hash) ([]*object.Commit, error) {
-	commit, err := r.Repository.CommitObject(hash)
+func (r *Repo) GetCommitsNotInBaseBranch(hash string) ([]*object.Commit, error) {
+	commit, err := r.Repository.CommitObject(plumbing.NewHash(hash))
 	if err != nil {
 		return nil, err
 	}
@@ -151,13 +158,13 @@ func (r *Repo) GetCommitsNotInBaseBranch(hash plumbing.Hash) ([]*object.Commit, 
 	if err != nil {
 		return nil, fmt.Errorf("could not find the tip of the base branch: %w", err)
 	}
-	base, err := r.Repository.CommitObject(baseHash)
+	base, err := r.Repository.CommitObject(plumbing.NewHash(baseHash))
 	if err != nil {
 		return nil, fmt.Errorf("could not find the commit for the tip of the base branch: %w", err)
 	}
 	mergeBase, err := commit.MergeBase(base)
 	if err != nil {
-		return nil, fmt.Errorf("no common ancestor between %s and %s", commit.Hash.String(), baseHash.String())
+		return nil, fmt.Errorf("no common ancestor between %s and %s", commit.Hash.String(), baseHash)
 	}
 	if len(mergeBase) != 1 {
 		return nil, fmt.Errorf("do not know how to deal with more than one merge base")
@@ -182,7 +189,7 @@ func (r *Repo) GetCommitsNotInBaseBranch(hash plumbing.Hash) ([]*object.Commit, 
 // and walks them until it finds one that is the tip of an exisiting pr/XXX branch.
 // Returns all the commits that were touched during the walk, in git children -> parent order.
 // (e.g. the first commit is always headCommit)
-func (r *Repo) FindBranchingPoint(headCommit plumbing.Hash) (Branch, []*object.Commit, error) {
+func (r *Repo) FindBranchingPoint(headCommit string) (Branch, []*object.Commit, error) {
 	commits, err := r.GetCommitsNotInBaseBranch(headCommit)
 	branchedCommits := make([]*object.Commit, 0)
 	if err != nil {
@@ -195,7 +202,7 @@ func (r *Repo) FindBranchingPoint(headCommit plumbing.Hash) (Branch, []*object.C
 
 	for _, commit := range commits {
 		for number, tip := range tracked {
-			if commit.Hash == tip {
+			if commit.Hash.String() == tip {
 				return NewLocalPr(r, number), branchedCommits, nil
 			}
 		}
@@ -245,7 +252,7 @@ func (r *Repo) GetHeadRef(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get HEAD ref: %w", err)
 	}
-	return hash.String(), nil
+	return hash, nil
 }
 
 func (r *Repo) GitExec(ctx context.Context, format string, args ...any) *exec.Cmd {
@@ -256,14 +263,13 @@ func (r *Repo) GitExec(ctx context.Context, format string, args ...any) *exec.Cm
 
 // GetHeadHash returns the SHA of the current HEAD commit.
 // This replaces the pattern: Repository.Head().Hash()
-func (r *Repo) GetHeadHash(ctx context.Context) (plumbing.Hash, error) {
+func (r *Repo) GetHeadHash(ctx context.Context) (string, error) {
 	cmd := r.GitExec(ctx, "rev-parse HEAD")
 	output, err := cmd.Output()
 	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("failed to get HEAD hash: %w", err)
+		return "", fmt.Errorf("failed to get HEAD hash: %w", err)
 	}
-	hashStr := strings.TrimSpace(string(output))
-	return plumbing.NewHash(hashStr), nil
+	return strings.TrimSpace(string(output)), nil
 }
 
 // GetCurrentBranchName returns the name of the current branch.
@@ -283,14 +289,13 @@ func (r *Repo) GetCurrentBranchName(ctx context.Context) (string, error) {
 // refName should be a full reference name like "refs/heads/main" or "refs/remotes/origin/main".
 // Returns an error if the reference doesn't exist.
 // This replaces the pattern: Repository.Reference(name, true).Hash()
-func (r *Repo) GetRefHash(ctx context.Context, refName string) (plumbing.Hash, error) {
+func (r *Repo) GetRefHash(ctx context.Context, refName string) (string, error) {
 	cmd := r.GitExec(ctx, "rev-parse --verify %s", refName)
 	output, err := cmd.Output()
 	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("%w: %s", ErrReferenceNotFound, refName)
+		return "", fmt.Errorf("%w: %s", ErrReferenceNotFound, refName)
 	}
-	hashStr := strings.TrimSpace(string(output))
-	return plumbing.NewHash(hashStr), nil
+	return strings.TrimSpace(string(output)), nil
 }
 
 func (r *Repo) Fetch(ctx context.Context) error {
@@ -327,12 +332,12 @@ func (r *Repo) TryRebaseCurrentBranchSilently(ctx context.Context, branch Branch
 	return false
 }
 
-func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, onto Branch, interactive bool) bool {
+func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first string, onto Branch, interactive bool) bool {
 	interactiveString := ""
 	if interactive {
 		interactiveString = "--interactive"
 	}
-	cmd := r.GitExec(ctx, "rebase %s --onto %s/%s %s^", interactiveString, GetRemoteName(), onto.RemoteName(), first.String())
+	cmd := r.GitExec(ctx, "rebase %s --onto %s/%s %s^", interactiveString, GetRemoteName(), onto.RemoteName(), first)
 	err := cmd.Run()
 	if err == nil {
 		return true
@@ -346,10 +351,10 @@ func (r *Repo) TryRebaseOntoSilently(ctx context.Context, first plumbing.Hash, o
 
 func (r *Repo) TryLocalRebaseOntoSilently(
 	ctx context.Context,
-	first plumbing.Hash,
-	onto plumbing.Hash,
+	first string,
+	onto string,
 ) bool {
-	cmd := r.GitExec(ctx, "rebase --onto %s^ %s", onto.String(), first.String())
+	cmd := r.GitExec(ctx, "rebase --onto %s^ %s", onto, first)
 	err := cmd.Run()
 	if err == nil {
 		return true
@@ -361,12 +366,12 @@ func (r *Repo) TryLocalRebaseOntoSilently(
 	return false
 }
 
-func (r *Repo) TryRebaseBranchOnto(ctx context.Context, parent plumbing.Hash, onto Branch) bool {
+func (r *Repo) TryRebaseBranchOnto(ctx context.Context, parent string, onto Branch) bool {
 	ontoName := onto.LocalName()
 	if !onto.IsPr() {
 		ontoName = fmt.Sprintf("%s/%s", GetRemoteName(), onto.RemoteName())
 	}
-	cmd := r.GitExec(ctx, "rebase --onto %s %s", ontoName, parent.String())
+	cmd := r.GitExec(ctx, "rebase --onto %s %s", ontoName, parent)
 	err := cmd.Run()
 	if err == nil {
 		return true
@@ -445,20 +450,18 @@ func (r *Repo) GetBranch(name string) (Branch, error) {
 	return NewBranch(r, name), nil
 }
 
-func (r *Repo) GetLocalTip(b Branch) (*object.Commit, error) {
-	hash, err := r.GetRefHash(context.Background(), fmt.Sprintf("refs/heads/%s", b.LocalName()))
-	if err != nil {
-		return nil, err
-	}
-	return r.CommitObject(hash)
+func (r *Repo) GetLocalTip(b Branch) (string, error) {
+	return r.GetRefHash(context.Background(), fmt.Sprintf("refs/heads/%s", b.LocalName()))
 }
 
-func (r *Repo) GetRemoteTip(b Branch) (*object.Commit, error) {
-	hash, err := r.GetRefHash(context.Background(), fmt.Sprintf("refs/remotes/%s/%s", GetRemoteName(), b.RemoteName()))
-	if err != nil {
-		return nil, err
-	}
-	return r.CommitObject(hash)
+func (r *Repo) GetRemoteTip(b Branch) (string, error) {
+	return r.GetRefHash(context.Background(), fmt.Sprintf("refs/remotes/%s/%s", GetRemoteName(), b.RemoteName()))
+}
+
+// IsAncestor returns true if ancestor is an ancestor of descendant.
+func (r *Repo) IsAncestor(ctx context.Context, ancestor, descendant string) bool {
+	cmd := r.GitExec(ctx, "merge-base --is-ancestor %s %s", ancestor, descendant)
+	return cmd.Run() == nil
 }
 
 func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
@@ -467,7 +470,7 @@ func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
 		fmt.Printf("could not find the tip of branch %s.\n", pr.LocalBranch())
 		return
 	}
-	fmt.Printf("Removing local branch %s. Tip was %s\n", pr.LocalBranch(), tip.Hash.String()[0:7])
+	fmt.Printf("Removing local branch %s. Tip was %s\n", pr.LocalBranch(), tip[0:7])
 	r.CleanupMultiple(ctx, []*LocalPr{pr}, r.AllPrs(ctx))
 }
 
