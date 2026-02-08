@@ -12,7 +12,6 @@ import (
 	"github.com/cupcicm/opp/core/story"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-github/v56/github"
 	"github.com/urfave/cli/v3"
 )
@@ -118,7 +117,7 @@ func PrCommand(in io.Reader, repo *core.Repo, gh func(context.Context) core.Gh, 
 				if !repo.TryRebaseCurrentBranchSilently(ctx, localPr) {
 					return fmt.Errorf("problem while rebasing %s on %s\n", args.InitialBranch.LocalName(), localPr.LocalName())
 				}
-				if !repo.TryLocalRebaseOntoSilently(ctx, args.Commits[0].Hash.String(), args.Commits[len(args.Commits)-1].Hash.String()) {
+				if !repo.TryLocalRebaseOntoSilently(ctx, args.Commits[0].Hash, args.Commits[len(args.Commits)-1].Hash) {
 					return fmt.Errorf("problem while extracting PR commits from %s\n", args.InitialBranch.LocalName())
 				}
 			}
@@ -141,7 +140,7 @@ type create struct {
 
 type args struct {
 	AncestorBranch core.Branch
-	Commits        []*object.Commit
+	Commits        []core.Commit
 	NeedsRebase    bool
 	CheckoutPr     bool
 	Interactive    bool
@@ -258,7 +257,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		fmt.Println("Choose what commits you want to include in this PR")
 		if !c.Repo.TryRebaseOntoSilently(
 			ctx,
-			previousArgs.Commits[len(previousArgs.Commits)-1].Hash.String(),
+			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
 			previousArgs.AncestorBranch,
 			true,
 		) {
@@ -271,13 +270,13 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 		fmt.Printf("Rebasing %d commits on top of %s/%s... ", len(previousArgs.Commits), core.GetRemoteName(), previousArgs.AncestorBranch.RemoteName())
 		if !c.Repo.TryRebaseOntoSilently(
 			ctx,
-			previousArgs.Commits[len(previousArgs.Commits)-1].Hash.String(),
+			previousArgs.Commits[len(previousArgs.Commits)-1].Hash,
 			previousArgs.AncestorBranch,
 			false,
 		) {
 			hashes := make([]string, len(previousArgs.Commits))
 			for i := range previousArgs.Commits {
-				hashes[i] = previousArgs.Commits[i].Hash.String()[0:6]
+				hashes[i] = previousArgs.Commits[i].Hash[0:6]
 			}
 			PrintFailure(nil)
 			return nil, cli.Exit(fmt.Errorf(
@@ -313,7 +312,7 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.LocalPr, error) {
 
 	// The first commit is the child-most one.
-	lastCommit := args.Commits[0].Hash.String()
+	lastCommit := args.Commits[0].Hash
 	title, body, err := c.GetBodyAndTitle(ctx, in, args.Commits)
 	if err != nil {
 		return nil, fmt.Errorf("could not get the pull request body and title: %w", err)
@@ -336,7 +335,7 @@ func (c *create) Create(ctx context.Context, in io.Reader, args *args) (*core.Lo
 	return localPr, err
 }
 
-func (c *create) GetBodyAndTitle(ctx context.Context, in io.Reader, commits []*object.Commit) (string, string, error) {
+func (c *create) GetBodyAndTitle(ctx context.Context, in io.Reader, commits []core.Commit) (string, string, error) {
 	rawTitle, rawBody := c.getRawBodyAndTitle(commits)
 	commitMessages := make([]string, len(commits))
 	for i, c := range commits {
@@ -350,7 +349,7 @@ func (c *create) GetBodyAndTitle(ctx context.Context, in io.Reader, commits []*o
 	return title, body, nil
 }
 
-func (c *create) getRawBodyAndTitle(commits []*object.Commit) (string, string) {
+func (c *create) getRawBodyAndTitle(commits []core.Commit) (string, string) {
 	sort.Slice(commits, func(i, j int) bool {
 		return len(commits[i].Message) > len(commits[j].Message)
 	})

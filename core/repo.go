@@ -10,12 +10,14 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/plumbing/storer"
 )
 
 var ErrReferenceNotFound = errors.New("reference not found")
+
+type Commit struct {
+	Hash    string
+	Message string
+}
 
 type Repo struct {
 	*git.Repository
@@ -146,11 +148,7 @@ func (r *Repo) AllLocalPrs() (map[int]string, error) {
 
 // Returns all of the commits between the given hash
 // and its merge-base with the base branch of the repository
-func (r *Repo) GetCommitsNotInBaseBranch(hash string) ([]*object.Commit, error) {
-	commit, err := r.Repository.CommitObject(plumbing.NewHash(hash))
-	if err != nil {
-		return nil, err
-	}
+func (r *Repo) GetCommitsNotInBaseBranch(hash string) ([]Commit, error) {
 	baseHash, err := r.GetRefHash(
 		context.Background(),
 		fmt.Sprintf("refs/remotes/%s/%s", GetRemoteName(), GetBaseBranch()),
@@ -158,30 +156,47 @@ func (r *Repo) GetCommitsNotInBaseBranch(hash string) ([]*object.Commit, error) 
 	if err != nil {
 		return nil, fmt.Errorf("could not find the tip of the base branch: %w", err)
 	}
-	base, err := r.Repository.CommitObject(plumbing.NewHash(baseHash))
-	if err != nil {
-		return nil, fmt.Errorf("could not find the commit for the tip of the base branch: %w", err)
-	}
-	mergeBase, err := commit.MergeBase(base)
-	if err != nil {
-		return nil, fmt.Errorf("no common ancestor between %s and %s", commit.Hash.String(), baseHash)
-	}
-	if len(mergeBase) != 1 {
-		return nil, fmt.Errorf("do not know how to deal with more than one merge base")
-	}
-	from := commit
-	to := mergeBase[0]
 
-	iterCommits := object.NewCommitPreorderIter(from, nil, nil)
-	commits := make([]*object.Commit, 0)
+	// Find the merge base between the given commit and the base branch.
+	mbCmd := r.GitExec(context.Background(), "merge-base %s %s", hash, baseHash)
+	mbOutput, err := mbCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("no common ancestor between %s and %s", hash, baseHash)
+	}
+	mergeBase := strings.TrimSpace(string(mbOutput))
 
-	iterCommits.ForEach(func(c *object.Commit) error {
-		if c.Hash == to.Hash {
-			return storer.ErrStop
+	// List commits between merge-base and hash with their full messages.
+	// Format: <hash>\x00<full message>\x00 for each commit.
+	// git log returns child-first order, which matches the old behavior.
+	logCmd := r.GitExec(context.Background(), "log --format=%%H%%x00%%B%%x00 %s..%s", mergeBase, hash)
+	logOutput, err := logCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("could not list commits: %w", err)
+	}
+
+	raw := string(logOutput)
+	if strings.TrimSpace(raw) == "" {
+		return []Commit{}, nil
+	}
+
+	// Split on the double null-byte boundary between commits (\x00\n\x00 or \x00\x00).
+	// Each entry is "<hash>\x00<message>".
+	entries := strings.Split(raw, "\x00\n")
+	commits := make([]Commit, 0, len(entries))
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
 		}
-		commits = append(commits, c)
-		return nil
-	})
+		parts := strings.SplitN(entry, "\x00", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		commits = append(commits, Commit{
+			Hash:    strings.TrimSpace(parts[0]),
+			Message: strings.TrimRight(parts[1], "\x00\n"),
+		})
+	}
 	return commits, nil
 }
 
@@ -189,9 +204,9 @@ func (r *Repo) GetCommitsNotInBaseBranch(hash string) ([]*object.Commit, error) 
 // and walks them until it finds one that is the tip of an exisiting pr/XXX branch.
 // Returns all the commits that were touched during the walk, in git children -> parent order.
 // (e.g. the first commit is always headCommit)
-func (r *Repo) FindBranchingPoint(headCommit string) (Branch, []*object.Commit, error) {
+func (r *Repo) FindBranchingPoint(headCommit string) (Branch, []Commit, error) {
 	commits, err := r.GetCommitsNotInBaseBranch(headCommit)
-	branchedCommits := make([]*object.Commit, 0)
+	branchedCommits := make([]Commit, 0)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -202,7 +217,7 @@ func (r *Repo) FindBranchingPoint(headCommit string) (Branch, []*object.Commit, 
 
 	for _, commit := range commits {
 		for number, tip := range tracked {
-			if commit.Hash.String() == tip {
+			if commit.Hash == tip {
 				return NewLocalPr(r, number), branchedCommits, nil
 			}
 		}

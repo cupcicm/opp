@@ -7,8 +7,6 @@ import (
 	"slices"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/urfave/cli/v3"
 )
 
@@ -78,7 +76,7 @@ func rebaseOnBaseBranch(
 	ctx context.Context,
 	repo *core.Repo,
 	pr *core.LocalPr,
-	parent *object.Commit,
+	parent string,
 	first bool,
 ) (bool, error) {
 	if !first {
@@ -89,7 +87,7 @@ func rebaseOnBaseBranch(
 		return false, fmt.Errorf("error during checkout: %w", err)
 	}
 	base := repo.BaseBranch()
-	if !repo.TryRebaseBranchOnto(ctx, parent.Hash.String(), base) {
+	if !repo.TryRebaseBranchOnto(ctx, parent, base) {
 		fmt.Printf("%s cannot be cleanly rebased on top of %s.\n", pr.LocalBranch(), base.LocalName())
 		fmt.Printf("This PR depended on another PR, and you merged a version that conflicts with this PR.\n")
 		fmt.Printf("Here is an editor where you need to choose how to correctly rebase %s on top of the new %s\n", pr.LocalBranch(), base.RemoteName())
@@ -120,7 +118,7 @@ func rebaseOnDependentPr(
 	repo *core.Repo,
 	pr *core.LocalPr,
 	ancestor *core.LocalPr,
-	parent *object.Commit,
+	parent string,
 	first bool,
 ) (bool, error) {
 	hasBeenMerged, err := rebase(ctx, repo, ancestor, false)
@@ -141,7 +139,7 @@ func rebaseOnDependentPr(
 		return false, fmt.Errorf("error during checkout: %w", err)
 	}
 	// Try to rebase silently once.
-	if !repo.TryRebaseBranchOnto(ctx, parent.Hash.String(), ancestor) {
+	if !repo.TryRebaseBranchOnto(ctx, parent, ancestor) {
 		fmt.Printf("%s cannot be cleanly rebased on top of %s.\n", pr.LocalBranch(), ancestor.LocalBranch())
 		fmt.Printf("This usually happens when you modified (e.g. amended) some commits in %s.\n", ancestor.LocalBranch())
 		fmt.Printf("Here is an editor window where you need to pick only the commits in %s.\n", pr.LocalBranch())
@@ -155,39 +153,35 @@ func rebaseOnDependentPr(
 	return false, nil
 }
 
-// Returns the first commit in the history of pr that belongs to its ancestor, and does
-// not belong to the PR.
-func FirstAncestorCommit(repo *core.Repo, pr *core.LocalPr) (*object.Commit, error) {
+// Returns the hash of the first commit in the history of pr that belongs to its ancestor,
+// and does not belong to the PR.
+func FirstAncestorCommit(repo *core.Repo, pr *core.LocalPr) (string, error) {
 	tip := core.Must(repo.GetLocalTip(pr))
 	commits, err := repo.GetCommitsNotInBaseBranch(tip)
 	if err != nil {
-		return nil, fmt.Errorf("%s does not descend from %s", pr.LocalBranch(), repo.BaseBranch().LocalName())
+		return "", fmt.Errorf("%s does not descend from %s", pr.LocalBranch(), repo.BaseBranch().LocalName())
 	}
 
 	ancestorKnownTips := pr.AncestorTips()
 	ancestor, err := pr.GetAncestor()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	remoteTip, err := repo.GetRemoteTip(ancestor)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	ancestorKnownTips = append(ancestorKnownTips, remoteTip)
 
 	slices.Reverse(ancestorKnownTips)
 	for _, commit := range commits {
-		if slices.Contains(ancestorKnownTips, commit.Hash.String()) {
+		if slices.Contains(ancestorKnownTips, commit.Hash) {
 			// The current commit was once the tip of the ancestor branch for this PR.
 			// This means that the current PR contains all commits after this, and
 			// the commits before this were the commits of the ancestor branch or PR.
-			return commit, nil
+			return commit.Hash, nil
 		}
 	}
-	// Fall back to the remote tip commit.
-	remoteTipCommit, err := repo.CommitObject(plumbing.NewHash(remoteTip))
-	if err != nil {
-		return nil, err
-	}
-	return remoteTipCommit, nil
+	// Fall back to the remote tip.
+	return remoteTip, nil
 }
