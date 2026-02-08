@@ -10,6 +10,7 @@ import (
 func init() {
 	viper.SetDefault("github.merge.method", "rebase")
 	viper.SetDefault("github.timeout", 30*time.Second)
+	viper.SetDefault("repo.push-command", "push")
 	viper.SetDefault("story.enrich", true)
 }
 
@@ -45,6 +46,10 @@ func GetRemoteName() string {
 
 func GetBaseBranch() string {
 	return viper.GetString("repo.branch")
+}
+
+func GetPushCommand() string {
+	return viper.GetString("repo.push-command")
 }
 
 func GetGithubMergeMethod() string {
