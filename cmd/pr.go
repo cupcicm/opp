@@ -10,8 +10,6 @@ import (
 
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/story"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/go-github/v56/github"
 	"github.com/urfave/cli/v3"
 )
@@ -358,15 +356,10 @@ func (c *create) getRawBodyAndTitle(commits []core.Commit) (string, string) {
 }
 
 func (c *create) createLocalBranchForPr(number int, hash string, ancestor core.Branch) {
-	c.Repo.CreateBranch(&config.Branch{
-		Name:   core.LocalBranchForPr(number),
-		Remote: core.RemoteBranchForPr(number),
-		Merge:  plumbing.NewBranchReferenceName(ancestor.RemoteName()),
-		Rebase: "true",
-	})
-
-	ref := plumbing.NewBranchReferenceName(core.LocalBranchForPr(number))
-	c.Repo.Storer.SetReference(plumbing.NewHashReference(ref, plumbing.NewHash(hash)))
+	branchName := core.LocalBranchForPr(number)
+	ctx := context.Background()
+	c.Repo.GitExec(ctx, "branch %s %s", branchName, hash).Run()
+	c.Repo.GitExec(ctx, "config branch.%s.rebase true", branchName).Run()
 }
 
 func (c *create) create(
