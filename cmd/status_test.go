@@ -1,12 +1,12 @@
 package cmd_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/cupcicm/opp/core"
 	"github.com/cupcicm/opp/core/tests"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,9 +18,9 @@ func TestStatus(t *testing.T) {
 	r.CreatePr(t, "HEAD^^", 4)
 	r.CreatePr(t, "HEAD^", 5)
 
-	pr4 := plumbing.NewBranchReferenceName(core.LocalBranchForPr(4))
-	pr3 := plumbing.NewBranchReferenceName(core.LocalBranchForPr(3))
-	r.Repo.Storer.SetReference(plumbing.NewSymbolicReference(pr4, pr3))
+	pr4Ref := "refs/heads/" + core.LocalBranchForPr(4)
+	pr3Ref := "refs/heads/" + core.LocalBranchForPr(3)
+	r.Repo.GitExec(context.Background(), "symbolic-ref %s %s", pr4Ref, pr3Ref).Run()
 
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(2, true)
 	r.GithubMock.PullRequestsMock.CallGetAndReturnMergeable(3, false)

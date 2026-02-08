@@ -9,7 +9,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/go-git/go-git/v5"
 )
 
 var ErrReferenceNotFound = errors.New("reference not found")
@@ -20,9 +19,8 @@ type Commit struct {
 }
 
 type Repo struct {
-	*git.Repository
-	s    *StateStore
-	path string
+	s        *StateStore
+	RootPath string
 }
 
 func Current() *Repo {
@@ -39,13 +37,8 @@ func NewRepo(folder string) *Repo {
 	dir := folder
 	for {
 		if _, err := os.Stat(path.Join(dir, ".git")); err == nil {
-			repo, err := git.PlainOpen(dir)
-			if err != nil {
-				panic(fmt.Sprintf("could not open git repository at %s: %v", dir, err))
-			}
 			r := &Repo{
-				Repository: repo,
-				path:       dir,
+				RootPath: dir,
 			}
 			r.s = NewStateStore(r)
 			return r
@@ -58,21 +51,6 @@ func NewRepo(folder string) *Repo {
 	}
 }
 
-// NewRepoFromGitRepo creates a Repo from an existing go-git Repository.
-// Used in tests.
-func NewRepoFromGitRepo(repo *git.Repository) *Repo {
-	w, err := repo.Worktree()
-	if err != nil {
-		panic("could not get worktree")
-	}
-	r := &Repo{
-		Repository: repo,
-		path:       w.Filesystem.Root(),
-	}
-	r.s = NewStateStore(r)
-	return r
-}
-
 func (r *Repo) OppEnabled() bool {
 	return FileExists(r.Config())
 }
@@ -82,7 +60,7 @@ func (r *Repo) StateStore() *StateStore {
 }
 
 func (r *Repo) Path() string {
-	return r.path
+	return r.RootPath
 }
 
 func (r *Repo) DotOpDir() string {
