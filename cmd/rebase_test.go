@@ -57,14 +57,14 @@ func TestRebaseFindsPreviousTips(t *testing.T) {
 	// However, pr/2 still remembers its old tip, so rebasing pr/3 will
 	// see pr/3 point to commit "4" on top of the "amended 3" commit
 	assert.NoError(t, r.Run("rebase"))
-	commits := core.Must(r.Log(&git.LogOptions{}))
+	commits := core.Must(r.Source.Log(&git.LogOptions{}))
 	expectedCommitMessages := []string{"4", "amended 3", "2", "1", "0"}
 	for i := 0; i < 5; i++ {
 		c := core.Must(commits.Next())
 		assert.Equal(t, expectedCommitMessages[i], strings.TrimSpace(c.Message))
 	}
 	r.Checkout(context.Background(), pr2)
-	pr2Commits := core.Must(r.Log(&git.LogOptions{}))
+	pr2Commits := core.Must(r.Source.Log(&git.LogOptions{}))
 	for i := 0; i < 4; i++ {
 		c := core.Must(pr2Commits.Next())
 		assert.Equal(t, expectedCommitMessages[i+1], strings.TrimSpace(c.Message))
@@ -117,7 +117,7 @@ func TestRebaseFindsTipWhenMerged(t *testing.T) {
 	// However, pr/3 remembers the old tip of pr/2, so rebasing pr/3 will
 	// see pr/3 point to commit "4" on top of the "amended 3" commit
 	assert.NoError(t, r.Run("rebase"))
-	commits := core.Must(r.Log(&git.LogOptions{}))
+	commits := core.Must(r.Source.Log(&git.LogOptions{}))
 	expectedCommitMessages := []string{"4", "amended 3", "2", "1", "0"}
 	for i := 0; i < 5; i++ {
 		c := core.Must(commits.Next())

@@ -68,7 +68,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 	githubConfig.Raw.Section("core").SetOption("hooksPath", "")
 	require.NoError(t, github.SetConfig(githubConfig))
 
-	repo := core.NewRepoFromGitRepo(source)
+	repo := core.NewRepo(sourcePath)
 	mock := &GithubMock{
 		PullRequestsMock: &PullRequestsMock{},
 		IssuesMock:       &IssuesMock{},
@@ -134,7 +134,7 @@ func (r *TestRepo) PrepareSource() {
 	wt := core.Must(r.Source.Worktree())
 	wt.Add("1")
 	hash := r.Commit("1")
-	core.Must(r.CreateRemote(&config.RemoteConfig{
+	core.Must(r.Source.CreateRemote(&config.RemoteConfig{
 		Name: "origin",
 		URLs: []string{r.Paths.Destination},
 	}))
