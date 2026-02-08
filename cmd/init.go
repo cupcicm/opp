@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v3"
 )
@@ -67,27 +66,33 @@ func (i *initializer) GuessRepoValues() {
 	viper.Set("repo.github", githubRepo)
 	viper.Set("repo.remote", remoteName)
 
-	githubHead := core.Must(i.Repo.Reference(plumbing.NewRemoteHEADReferenceName(remoteName), false))
-	mainRef := githubHead.Target().Short()
-	mainBranch := mainRef[strings.Index(mainRef, "/")+1:]
+	mainBranch := core.Must(i.Repo.GetMainBranch(context.Background(), remoteName))
 	viper.Set("repo.branch", mainBranch)
 }
 
 func (i *initializer) extractGithubRepo() (string, string) {
+	cmd := i.Repo.GitExec(context.Background(), "remote")
+	output := strings.TrimSpace(string(core.Must(cmd.Output())))
+	remotes := strings.Split(output, "\n")
+
 	found := false
 	var result string
 	var remoteName string
-	for _, remote := range core.Must(i.Repo.Remotes()) {
-		urls := remote.Config().URLs
-		if len(urls) == 0 {
+	for _, name := range remotes {
+		name = strings.TrimSpace(name)
+		if name == "" {
 			continue
 		}
-		url := urls[0]
+		urlCmd := i.Repo.GitExec(context.Background(), "remote get-url %s", name)
+		urlBytes, err := urlCmd.Output()
+		if err != nil {
+			continue
+		}
+		url := strings.TrimSpace(string(urlBytes))
 		index := strings.Index(url, "github.com")
 		dotGit := strings.LastIndex(url, ".git")
 		if index > -1 {
 			if found {
-				// Second time we find a remote, not good.
 				panic("two github remotes in this repo.")
 			}
 			found = true
@@ -96,7 +101,7 @@ func (i *initializer) extractGithubRepo() (string, string) {
 			} else {
 				result = url[index+len("github.com")+1 : dotGit]
 			}
-			remoteName = remote.Config().Name
+			remoteName = name
 		}
 	}
 	return remoteName, result

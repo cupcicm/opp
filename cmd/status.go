@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/cupcicm/opp/core"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/exp/slices"
 )
@@ -111,13 +110,13 @@ func (s *status) isMergeable(ctx context.Context, pr *core.LocalPr) (bool, error
 }
 
 func (s *status) isUpToDate(ctx context.Context, pr *core.LocalPr) (bool, error) {
-	remote, err := s.Repo.Reference(plumbing.NewRemoteReferenceName(core.GetRemoteName(), pr.RemoteBranch()), true)
+	remote, err := s.Repo.GetRemoteTip(pr)
 	if err != nil {
 		return false, err
 	}
-	local, err := s.Repo.Reference(plumbing.NewBranchReferenceName(pr.LocalBranch()), true)
+	local, err := s.Repo.GetLocalTip(pr)
 	if err != nil {
 		return false, err
 	}
-	return local.Hash() == remote.Hash(), nil
+	return local == remote, nil
 }

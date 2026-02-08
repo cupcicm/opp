@@ -272,3 +272,12 @@ func TestIsAncestor(t *testing.T) {
 	sideHash := core.Must(r.Repo.GetRefHash(ctx, "side-branch"))
 	assert.True(t, r.Repo.IsAncestor(ctx, sideHash, newHead), "side branch commit should be ancestor of merge commit")
 }
+
+func TestGetMainBranch(t *testing.T) {
+	ctx := context.Background()
+	r := tests.NewTestRepo(t)
+
+	branch, err := r.Repo.GetMainBranch(ctx, "origin")
+	assert.NoError(t, err)
+	assert.Equal(t, "master", branch)
+}
