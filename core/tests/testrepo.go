@@ -142,6 +142,7 @@ func (r *TestRepo) PrepareSource() {
 	if err != nil {
 		panic(err)
 	}
+	r.GitExec(context.Background(), "symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master").Run()
 	for i := 0; i < 5; i++ {
 		wt.Add(strconv.Itoa(i))
 		r.Commit(strconv.Itoa(i))

@@ -298,6 +298,17 @@ func (r *Repo) GetRefHash(ctx context.Context, refName string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
+func (r *Repo) GetMainBranch(ctx context.Context, remoteName string) (string, error) {
+	cmd := r.GitExec(ctx, "symbolic-ref refs/remotes/%s/HEAD", remoteName)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("could not determine main branch for remote %s: %w", remoteName, err)
+	}
+	ref := strings.TrimSpace(string(output))
+	prefix := fmt.Sprintf("refs/remotes/%s/", remoteName)
+	return strings.TrimPrefix(ref, prefix), nil
+}
+
 func (r *Repo) Fetch(ctx context.Context) error {
 	ctx, cancel := context.WithTimeoutCause(
 		ctx, GetGithubTimeout(),
