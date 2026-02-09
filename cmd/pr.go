@@ -146,6 +146,7 @@ type args struct {
 	Detached       bool
 	InitialBranch  core.Branch
 	Extract        bool
+	BranchTag      string
 }
 
 func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, error) {

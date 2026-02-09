@@ -20,12 +20,15 @@ type branch struct {
 	Repo  *Repo
 	Name  string
 	Local bool
+
+	state *BranchState
 }
 
 type Branch interface {
 	IsPr() bool
 	LocalName() string
 	RemoteName() string
+	Tag() string
 }
 
 func (b *LocalPr) ReloadState() {
@@ -54,6 +57,7 @@ func NewBranch(repo *Repo, name string) Branch {
 		Repo: repo,
 		Name: name,
 	}
+	branch.state = repo.StateStore().GetBranchState(&branch)
 	return &branch
 }
 
@@ -81,8 +85,16 @@ func (b *branch) RemoteName() string {
 	return b.Name
 }
 
+func (b *branch) Tag() string {
+	return b.state.Tag
+}
+
 func (b *LocalPr) Url() string {
 	return fmt.Sprintf("https://github.com/%s/pull/%d", GetGithubRepo(), b.PrNumber)
+}
+
+func (b *LocalPr) Tag() string {
+	return b.state.Tag
 }
 
 func (b *LocalPr) GetAncestor() (Branch, error) {
