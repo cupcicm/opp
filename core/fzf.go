@@ -18,49 +18,63 @@ func ChooseFromFzf(options []string, multi bool, prompt string, defaultQuery ...
 		return nil, errors.New("no options to choose from")
 	}
 
+	// Check if fzf is available
+	if _, err := exec.LookPath("fzf"); err != nil {
+		return nil, errors.New("fzf not found - install with `brew install fzf`")
+	}
+
+	// Write options to a temporary file
+	tmpFile, err := os.CreateTemp("", "opp-fzf-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	for _, opt := range options {
+		fmt.Fprintln(tmpFile, opt)
+	}
+	tmpFile.Close()
+
 	height := calculateFzfHeight(len(options))
 	prompt = strings.TrimSpace(prompt) + " "
 
-	cmd := exec.Command("fzf",
-		"--prompt="+prompt,
+	// Build fzf arguments - read from the temp file
+	// Quote arguments that may contain spaces
+	args := []string{
+		fmt.Sprintf("--prompt='%s'", prompt),
 		"--no-info",
 		fmt.Sprintf("--height=%d", height),
-	)
+	}
 
 	if multi {
-		cmd.Args = append(cmd.Args, "--multi")
+		args = append(args, "--multi")
 	}
 
 	if len(defaultQuery) > 0 && defaultQuery[0] != "" {
-		cmd.Args = append(cmd.Args, "--query="+defaultQuery[0])
+		args = append(args, fmt.Sprintf("--query='%s'", defaultQuery[0]))
 	}
 
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
+	// Use shell to cat the file and pipe to fzf
+	// This keeps stdin available for fzf's interactive input
+	shellCmd := fmt.Sprintf("cat %s | fzf %s", tmpFile.Name(), strings.Join(args, " "))
 
-	go func() {
-		defer stdin.Close()
-		for _, opt := range options {
-			fmt.Fprintln(stdin, opt)
-		}
-	}()
+	cmd := exec.Command("bash", "-c", shellCmd)
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin // Keep stdin for interactive input
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	cmd.Stderr = os.Stderr
 
 	err = cmd.Run()
 	if err != nil {
-		if strings.Contains(err.Error(), "executable file not found") {
-			return nil, errors.New("fzf not found - install with `brew install fzf`")
+		// User cancelled (Ctrl+C or Esc) - exit code 130 or 1
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() == 130 || exitErr.ExitCode() == 1 {
+				return nil, errors.New("selection cancelled")
+			}
 		}
-		// User cancelled (Ctrl+C or Esc)
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 130 {
-			return nil, errors.New("selection cancelled")
-		}
-		return nil, err
+		return nil, fmt.Errorf("fzf error: %w", err)
 	}
 
 	selected := strings.Split(strings.TrimSpace(out.String()), "\n")

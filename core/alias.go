@@ -172,8 +172,9 @@ type Alias struct {
 // ListAliases returns all symbolic-refs that point to pr/* branches
 // Skips orphaned aliases (where target branch no longer exists)
 func (r *Repo) ListAliases() ([]Alias, error) {
-	// List all refs - use for-each-ref with proper format escaping
-	cmd := r.GitExec(context.Background(), "for-each-ref '--format=%%(refname)' refs/heads/")
+	// Use a single git command to get all refs with their symref targets
+	// %(symref) is empty for non-symbolic refs, so we can filter efficiently
+	cmd := r.GitExec(context.Background(), "for-each-ref '--format=%%(refname) %%(symref)' refs/heads/")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("could not list references: %w", err)
@@ -185,27 +186,23 @@ func (r *Repo) ListAliases() ([]Alias, error) {
 			continue
 		}
 
-		refName := line
-
-		// Check if it's a symbolic ref
-		cmd = r.GitExec(context.Background(), "symbolic-ref %s", refName)
-		targetOutput, err := cmd.Output()
-		if err != nil {
-			continue // Not a symbolic ref
-		}
-
-		target := strings.TrimSpace(string(targetOutput))
-		if target == "" {
+		// Format: "refs/heads/aliasname refs/heads/pr/123" (symref non-empty)
+		// or:     "refs/heads/branchname " (symref empty for regular branches)
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) != 2 {
 			continue
 		}
 
-		// Verify target branch still exists (skip orphaned refs)
-		cmd = r.GitExec(context.Background(), "show-ref --verify --quiet %s", target)
-		if cmd.Run() != nil {
-			continue // Target branch deleted - skip this orphaned alias
+		refName := parts[0]
+		symrefTarget := strings.TrimSpace(parts[1])
+
+		// Skip if not a symbolic ref
+		if symrefTarget == "" {
+			continue
 		}
 
-		targetShort := strings.TrimPrefix(target, "refs/heads/")
+		// Check if it points to a pr/* branch
+		targetShort := strings.TrimPrefix(symrefTarget, "refs/heads/")
 		prNumber, err := ExtractPrNumber(targetShort)
 		if err != nil {
 			continue // Not pointing to a PR branch
