@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 )
 
@@ -475,6 +476,15 @@ func (r *Repo) CleanupAfterMerge(ctx context.Context, pr *LocalPr) {
 		return
 	}
 	fmt.Printf("Removing local branch %s. Tip was %s\n", pr.LocalBranch(), tip[0:7])
+
+	// Remove any aliases pointing to this PR
+	aliases := r.AliasesForPr(pr.PrNumber)
+	for _, alias := range aliases {
+		if err := r.DeleteAlias(alias); err == nil {
+			fmt.Printf("Removed alias '%s'\n", alias)
+		}
+	}
+
 	r.CleanupMultiple(ctx, []*LocalPr{pr}, r.AllPrs(ctx))
 }
 
@@ -519,4 +529,15 @@ func (r *Repo) DeleteRemoteBranch(ctx context.Context, branch Branch) error {
 func (r *Repo) DetachHead(ctx context.Context) error {
 	cmd := r.GitExec(ctx, "checkout --detach HEAD")
 	return cmd.Run()
+}
+
+// GetBranchMtime returns the modification time of a branch ref file.
+// This can be used to sort branches by "last used" (most recently modified).
+func (r *Repo) GetBranchMtime(branch Branch) (time.Time, error) {
+	refPath := path.Join(r.Path(), ".git", "refs", "heads", branch.LocalName())
+	info, err := os.Stat(refPath)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
 }

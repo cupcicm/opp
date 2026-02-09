@@ -43,7 +43,7 @@ func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core
 				alreadyMentioned[pr.PrNumber] = true
 				ancestors := pr.AllAncestors()
 				if len(ancestors) >= 1 {
-					fmt.Fprintf(out, "PR chain #%d\n", ancestors[0].PrNumber)
+					fmt.Fprintf(out, "PR chain #%s\n", status.formatPrWithAliases(ancestors[0].PrNumber))
 					for i, ancestor := range append(ancestors, &pr) {
 						alreadyMentioned[ancestor.PrNumber] = true
 						fmt.Fprintf(out, "  %d. ", i+1)
@@ -51,7 +51,7 @@ func StatusCommand(out io.Writer, repo *core.Repo, gh func(context.Context) core
 					}
 
 				} else {
-					fmt.Fprintf(out, "PR #%d. ", pr.PrNumber)
+					fmt.Fprintf(out, "PR #%d%s. ", pr.PrNumber, status.formatAliases(pr.PrNumber))
 					status.PrintStatus(ctx, &pr, 0)
 				}
 			}
@@ -119,4 +119,22 @@ func (s *status) isUpToDate(ctx context.Context, pr *core.LocalPr) (bool, error)
 		return false, err
 	}
 	return local == remote, nil
+}
+
+// formatAliases returns a formatted string of aliases for a PR (e.g., " (myfeature)")
+func (s *status) formatAliases(prNumber int) string {
+	aliases := s.Repo.AliasesForPr(prNumber)
+	if len(aliases) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (%s)", strings.Join(aliases, ", "))
+}
+
+// formatPrWithAliases returns the PR number with any aliases
+func (s *status) formatPrWithAliases(prNumber int) string {
+	aliases := s.Repo.AliasesForPr(prNumber)
+	if len(aliases) == 0 {
+		return fmt.Sprintf("%d", prNumber)
+	}
+	return fmt.Sprintf("%d (%s)", prNumber, strings.Join(aliases, ", "))
 }
