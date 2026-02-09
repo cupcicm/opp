@@ -1,12 +1,11 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/go-git/go-git/v5/plumbing"
 )
 
 var (
@@ -74,69 +73,89 @@ func (r *Repo) CreateAlias(name string, prNumber int) error {
 	}
 
 	// Check if a regular branch with this name already exists
-	refName := plumbing.NewBranchReferenceName(name)
-	if existingRef, err := r.Reference(refName, false); err == nil {
-		// Reference exists - check if it's a symbolic ref or a regular branch
-		if existingRef.Type() != plumbing.SymbolicReference {
+	refName := fmt.Sprintf("refs/heads/%s", name)
+	cmd := r.GitExec(context.Background(), "symbolic-ref %s 2>/dev/null", refName)
+	if output, err := cmd.Output(); err == nil && strings.TrimSpace(string(output)) == "" {
+		// Reference exists but is not a symbolic ref - it's a regular branch
+		return fmt.Errorf("%w: a branch named '%s' already exists", ErrInvalidAliasName, name)
+	}
+
+	// Also check if it's a regular ref (not symbolic)
+	cmd = r.GitExec(context.Background(), "show-ref --verify --quiet %s", refName)
+	if cmd.Run() == nil {
+		// Ref exists - check if it's symbolic
+		cmd = r.GitExec(context.Background(), "symbolic-ref %s", refName)
+		if _, err := cmd.Output(); err != nil {
+			// It's a regular branch, not a symbolic ref
 			return fmt.Errorf("%w: a branch named '%s' already exists", ErrInvalidAliasName, name)
 		}
 	}
 
 	// Check that the target PR branch exists
 	targetBranch := LocalBranchForPr(prNumber)
-	targetRefName := plumbing.NewBranchReferenceName(targetBranch)
-	if _, err := r.Reference(targetRefName, true); err != nil {
+	targetRefName := fmt.Sprintf("refs/heads/%s", targetBranch)
+	cmd = r.GitExec(context.Background(), "show-ref --verify --quiet %s", targetRefName)
+	if cmd.Run() != nil {
 		return fmt.Errorf("PR branch %s does not exist locally", targetBranch)
 	}
 
 	// Create symbolic reference
-	ref := plumbing.NewSymbolicReference(refName, targetRefName)
-	return r.Storer.SetReference(ref)
+	cmd = r.GitExec(context.Background(), "symbolic-ref %s %s", refName, targetRefName)
+	return cmd.Run()
 }
 
 // DeleteAlias removes a git symbolic-ref alias
 func (r *Repo) DeleteAlias(name string) error {
-	refName := plumbing.NewBranchReferenceName(name)
-	ref, err := r.Reference(refName, false)
-	if err != nil {
+	refName := fmt.Sprintf("refs/heads/%s", name)
+
+	// Check if ref exists
+	cmd := r.GitExec(context.Background(), "show-ref --verify --quiet %s", refName)
+	if cmd.Run() != nil {
 		return fmt.Errorf("%w: %s", ErrAliasNotFound, name)
 	}
 
-	// Only delete if it's a symbolic reference pointing to a PR branch
-	if ref.Type() != plumbing.SymbolicReference {
+	// Check if it's a symbolic reference
+	cmd = r.GitExec(context.Background(), "symbolic-ref %s", refName)
+	output, err := cmd.Output()
+	if err != nil {
 		return fmt.Errorf("%s is not an alias (it's a regular branch)", name)
 	}
 
-	target := ref.Target().Short()
-	if _, err := ExtractPrNumber(target); err != nil {
+	// Verify it points to a PR branch
+	target := strings.TrimSpace(string(output))
+	targetShort := strings.TrimPrefix(target, "refs/heads/")
+	if _, err := ExtractPrNumber(targetShort); err != nil {
 		return fmt.Errorf("%s is not an alias to a PR branch", name)
 	}
 
-	return r.Storer.RemoveReference(refName)
+	// Delete the symbolic reference
+	cmd = r.GitExec(context.Background(), "update-ref -d %s", refName)
+	return cmd.Run()
 }
 
 // ResolveAlias checks if a name is a symbolic-ref pointing to a PR branch
 // Returns the PR number and true if it's a valid alias, 0 and false otherwise
 // Returns false if the target branch no longer exists (orphaned alias)
 func (r *Repo) ResolveAlias(name string) (int, bool) {
-	refName := plumbing.NewBranchReferenceName(name)
-	ref, err := r.Reference(refName, false)
+	refName := fmt.Sprintf("refs/heads/%s", name)
+
+	// Check if it's a symbolic reference
+	cmd := r.GitExec(context.Background(), "symbolic-ref %s", refName)
+	output, err := cmd.Output()
 	if err != nil {
 		return 0, false
 	}
 
-	if ref.Type() != plumbing.SymbolicReference {
-		return 0, false
-	}
+	target := strings.TrimSpace(string(output))
 
 	// Verify target branch still exists (handle orphaned refs)
-	targetRefName := ref.Target()
-	if _, err := r.Reference(targetRefName, true); err != nil {
+	cmd = r.GitExec(context.Background(), "show-ref --verify --quiet %s", target)
+	if cmd.Run() != nil {
 		return 0, false // Target branch deleted - orphaned alias
 	}
 
-	target := ref.Target().Short()
-	prNumber, err := ExtractPrNumber(target)
+	targetShort := strings.TrimPrefix(target, "refs/heads/")
+	prNumber, err := ExtractPrNumber(targetShort)
 	if err != nil {
 		return 0, false
 	}
@@ -153,42 +172,50 @@ type Alias struct {
 // ListAliases returns all symbolic-refs that point to pr/* branches
 // Skips orphaned aliases (where target branch no longer exists)
 func (r *Repo) ListAliases() ([]Alias, error) {
-	refs, err := r.References()
+	// List all refs - use for-each-ref with proper format escaping
+	cmd := r.GitExec(context.Background(), "for-each-ref '--format=%%(refname)' refs/heads/")
+	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("could not iterate references: %w", err)
+		return nil, fmt.Errorf("could not list references: %w", err)
 	}
 
 	var aliases []Alias
-	err = refs.ForEach(func(ref *plumbing.Reference) error {
-		if ref.Type() != plumbing.SymbolicReference {
-			return nil
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line == "" {
+			continue
 		}
 
-		if !ref.Name().IsBranch() {
-			return nil
+		refName := line
+
+		// Check if it's a symbolic ref
+		cmd = r.GitExec(context.Background(), "symbolic-ref %s", refName)
+		targetOutput, err := cmd.Output()
+		if err != nil {
+			continue // Not a symbolic ref
+		}
+
+		target := strings.TrimSpace(string(targetOutput))
+		if target == "" {
+			continue
 		}
 
 		// Verify target branch still exists (skip orphaned refs)
-		targetRefName := ref.Target()
-		if _, err := r.Reference(targetRefName, true); err != nil {
-			return nil // Target branch deleted - skip this orphaned alias
+		cmd = r.GitExec(context.Background(), "show-ref --verify --quiet %s", target)
+		if cmd.Run() != nil {
+			continue // Target branch deleted - skip this orphaned alias
 		}
 
-		target := ref.Target().Short()
-		prNumber, err := ExtractPrNumber(target)
+		targetShort := strings.TrimPrefix(target, "refs/heads/")
+		prNumber, err := ExtractPrNumber(targetShort)
 		if err != nil {
-			return nil
+			continue // Not pointing to a PR branch
 		}
 
+		aliasName := strings.TrimPrefix(refName, "refs/heads/")
 		aliases = append(aliases, Alias{
-			Name:     ref.Name().Short(),
+			Name:     aliasName,
 			PrNumber: prNumber,
 		})
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
 	}
 
 	return aliases, nil
@@ -220,4 +247,3 @@ func (r *Repo) DeleteAliasesForPr(prNumber int) error {
 	}
 	return nil
 }
-
