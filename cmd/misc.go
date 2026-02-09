@@ -25,6 +25,7 @@ func PrFromFirstArgument(repo *core.Repo, cmd *cli.Command) (*core.LocalPr, bool
 
 // PrFromStringOrCurrentBranch returns the PR based on the given string (if non-empty),
 // or the current branch.
+// The string can be a PR number, a pr/XXX branch name, or an alias.
 func PrFromStringOrCurrentBranch(repo *core.Repo, str string) (*core.LocalPr, bool, error) {
 	var pr *core.LocalPr
 	currentBranch := false
@@ -34,25 +35,45 @@ func PrFromStringOrCurrentBranch(repo *core.Repo, str string) (*core.LocalPr, bo
 		var found bool
 		pr, found = repo.PrForHead()
 		if !found {
-			return nil, false, cli.Exit("please run opp with pr/XXX to specify a specific PR branch", 1)
+			return nil, false, cli.Exit("please run opp with pr/XXX or an alias to specify a specific PR branch", 1)
 		}
 	} else {
-		prNumber, err := strconv.Atoi(str)
-		if err == nil {
-			pr = core.NewLocalPr(repo, prNumber)
-		} else {
-			prNumber, err := core.ExtractPrNumber(str)
-			if err != nil {
-				return nil, false, cli.Exit(fmt.Errorf("%s is not a PR", str), 1)
-			}
-			pr = core.NewLocalPr(repo, prNumber)
+		prNumber, err := ExtractPrNumberOrAlias(repo, str)
+		if err != nil {
+			return nil, false, cli.Exit(fmt.Errorf("%s is not a PR or alias", str), 1)
 		}
+		pr = core.NewLocalPr(repo, prNumber)
 		headPr, headIsPr := repo.PrForHead()
 		if headIsPr && headPr.PrNumber == pr.PrNumber {
 			currentBranch = true
 		}
 	}
 	return pr, currentBranch, nil
+}
+
+// ExtractPrNumberOrAlias extracts a PR number from a string that can be:
+// - A plain number (e.g., "123")
+// - A pr/XXX format (e.g., "pr/123")
+// - An alias (e.g., "myfeature")
+func ExtractPrNumberOrAlias(repo *core.Repo, str string) (int, error) {
+	// First, try to parse as a number
+	prNumber, err := strconv.Atoi(str)
+	if err == nil {
+		return prNumber, nil
+	}
+
+	// Try to extract from pr/XXX format
+	prNumber, err = core.ExtractPrNumber(str)
+	if err == nil {
+		return prNumber, nil
+	}
+
+	// Try to resolve as an alias
+	if prNumber, ok := repo.ResolveAlias(str); ok {
+		return prNumber, nil
+	}
+
+	return 0, fmt.Errorf("%s is not a PR number, pr/XXX format, or alias", str)
 }
 
 func PrintSuccess() {

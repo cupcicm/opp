@@ -28,6 +28,8 @@ func MakeApp(out io.Writer, in io.Reader, repo *core.Repo, gh func(context.Conte
 			RebaseCommand(repo),
 			PushCommand(repo),
 			CommentCommand(repo, gh),
+			AliasCommand(repo),
+			CheckoutCommand(repo),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			// Called only if no subcommand match.

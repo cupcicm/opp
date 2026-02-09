@@ -17,6 +17,7 @@ require (
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/buger/goterm v1.0.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 )
 
