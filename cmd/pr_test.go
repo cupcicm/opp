@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/cupcicm/opp/core"
+	"github.com/cupcicm/opp/core/story"
 	"github.com/cupcicm/opp/core/tests"
 	"github.com/google/go-github/v56/github"
 	"github.com/stretchr/testify/assert"
@@ -73,6 +74,45 @@ func TestCanSetAncestor(t *testing.T) {
 	ancestor, err := rebasedOnMaster.GetAncestor()
 	if assert.Nil(t, err) {
 		assert.Equal(t, "pr/2", ancestor.LocalName())
+	}
+}
+
+func TestCanCreatePRFromPRBranchWithNewCommits(t *testing.T) {
+	r := tests.NewTestRepo(t)
+
+	r.CreatePr(t, "HEAD^", 2)
+	r.Repo.GitExec(context.Background(), "checkout pr/2").Run()
+
+	// Add a commit on pr/2 without pushing - local pr/2 is now ahead of remote
+	wt := core.Must(r.Source.Worktree())
+	wt.Add("0")
+	r.Commit("extra commit on pr/2")
+
+	r.GithubMock.IssuesMock.CallListAndReturnPr(2)
+	r.GithubMock.PullRequestsMock.CallCreate(3)
+	r.StoryFetcherMock.CallFetchInProgressStories([]story.Story{}, false)
+	err := r.Run("pr", "-i", "HEAD")
+	assert.NoError(t, err)
+
+	pr3 := r.AssertHasPr(t, 3)
+	assert.True(t, pr3.StateIsLoaded())
+	ancestor, err := pr3.GetAncestor()
+	if assert.Nil(t, err) {
+		assert.Equal(t, "pr/2", ancestor.LocalName())
+	}
+}
+
+func TestErrorsWhenOnPRBranchWithNoNewCommits(t *testing.T) {
+	r := tests.NewTestRepo(t)
+
+	r.CreatePr(t, "HEAD^", 2)
+	r.Repo.GitExec(context.Background(), "checkout pr/2").Run()
+
+	// No new commits - we're at remote tip; should error with ErrAlreadyAPrBranch
+	err := r.Run("pr", "-i", "HEAD")
+	assert.Error(t, err, "expected error when on PR branch with no new commits")
+	if err != nil {
+		assert.Contains(t, err.Error(), "already", "error should mention already-pushed PR")
 	}
 }
 

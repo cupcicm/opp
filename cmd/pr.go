@@ -196,7 +196,24 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 	}
 	tip := core.Must(c.Repo.GetLocalTip(ancestor))
 	if ancestor.IsPr() && tip == headCommit {
-		return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
+		// We're at the tip of a PR branch. If we're on that PR branch with commits ahead of remote,
+		// allow creating a new PR that branches off it. Otherwise error.
+		branchName, branchErr := c.Repo.GetCurrentBranchName(ctx)
+		if branchErr == nil && branchName == ancestor.LocalName() {
+			remoteTip, remoteErr := c.Repo.GetRemoteTip(ancestor)
+			if remoteErr == nil && headCommit != remoteTip {
+				rangeCommits, rangeErr := c.Repo.GetCommitsInRange(remoteTip, headCommit)
+				if rangeErr == nil && len(rangeCommits) > 0 {
+					commits = rangeCommits
+				} else {
+					return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
+				}
+			} else {
+				return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
+			}
+		} else {
+			return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
+		}
 	}
 	shouldCheckout := cmd.Bool("checkout")
 
@@ -288,13 +305,36 @@ func (c *create) RebasePrCommits(ctx context.Context, previousArgs *args) (*args
 	if err != nil {
 		return nil, err
 	}
-	ancestor, commits, err := c.Repo.FindBranchingPoint(headCommit)
 
-	if err != nil {
-		return nil, cli.Exit(fmt.Sprintf(
-			"%s does not descend from %s/%s",
-			headCommit, core.GetRemoteName(), core.GetBaseBranch(),
-		), 1)
+	var ancestor core.Branch
+	var commits []core.Commit
+	if previousArgs.AncestorBranch.IsPr() {
+		// We rebased onto a PR branch. FindBranchingPoint only checks local refs, so it
+		// would fail to find the PR as ancestor (the rebased commit's parent is the remote
+		// tip, not a local pr/ ref). Use the remote tip to compute commits.
+		remoteTip, err := c.Repo.GetRemoteTip(previousArgs.AncestorBranch)
+		if err != nil {
+			return nil, cli.Exit(fmt.Sprintf(
+				"%s does not descend from %s/%s",
+				headCommit, core.GetRemoteName(), core.GetBaseBranch(),
+			), 1)
+		}
+		commits, err = c.Repo.GetCommitsInRange(remoteTip, headCommit)
+		if err != nil || len(commits) == 0 {
+			return nil, cli.Exit(fmt.Sprintf(
+				"%s does not descend from %s/%s",
+				headCommit, core.GetRemoteName(), core.GetBaseBranch(),
+			), 1)
+		}
+		ancestor = previousArgs.AncestorBranch
+	} else {
+		ancestor, commits, err = c.Repo.FindBranchingPoint(headCommit)
+		if err != nil {
+			return nil, cli.Exit(fmt.Sprintf(
+				"%s does not descend from %s/%s",
+				headCommit, core.GetRemoteName(), core.GetBaseBranch(),
+			), 1)
+		}
 	}
 
 	// make a deep copy of previous args
