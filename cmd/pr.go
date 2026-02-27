@@ -20,6 +20,8 @@ var (
 	ErrAlreadyAPrBranch                         = errors.New(strings.TrimSpace(`
 You are on a branch that has already been pushed as a PR
 Use opp up to update that PR instead.`))
+	ErrNoNewCommitsOnPrBranch = errors.New(strings.TrimSpace(`
+You're on a PR branch, but there are no new local commits to branch off with.`))
 	BaseFlagUsage = strings.TrimSpace(`
 Specify what is the base for your PR (either the base branch or another PR).
 If you leave this blank, opp is going to detect what is the right base for your PR
@@ -206,12 +208,13 @@ func (c *create) SanitizeArgs(ctx context.Context, cmd *cli.Command) (*args, err
 				if rangeErr == nil && len(rangeCommits) > 0 {
 					commits = rangeCommits
 				} else {
-					return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
+					return nil, cli.Exit(ErrNoNewCommitsOnPrBranch, 1)
 				}
 			} else {
-				return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
+				return nil, cli.Exit(ErrNoNewCommitsOnPrBranch, 1)
 			}
 		} else {
+			// Shouldn't happen, since we're not detached
 			return nil, cli.Exit(ErrAlreadyAPrBranch, 1)
 		}
 	}

@@ -108,11 +108,11 @@ func TestErrorsWhenOnPRBranchWithNoNewCommits(t *testing.T) {
 	r.CreatePr(t, "HEAD^", 2)
 	r.Repo.GitExec(context.Background(), "checkout pr/2").Run()
 
-	// No new commits - we're at remote tip; should error with ErrAlreadyAPrBranch
+	// No new commits - we're at remote tip; should error with ErrNoNewCommitsOnPrBranch
 	err := r.Run("pr", "-i", "HEAD")
 	assert.Error(t, err, "expected error when on PR branch with no new commits")
 	if err != nil {
-		assert.Contains(t, err.Error(), "already", "error should mention already-pushed PR")
+		assert.Contains(t, err.Error(), "no new local commits", "error should mention no new commits")
 	}
 }
 
