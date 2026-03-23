@@ -7,6 +7,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TODO(manu): Use this value somewhere.
+const MagicValue = 42
+
 func init() {
 	viper.SetDefault("github.merge.method", "rebase")
 	viper.SetDefault("github.timeout", 30*time.Second)
