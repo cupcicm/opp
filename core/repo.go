@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path"
 	"strings"
-
 )
 
 var ErrReferenceNotFound = errors.New("reference not found")
@@ -159,6 +158,39 @@ func (r *Repo) GetCommitsNotInBaseBranch(hash string) ([]Commit, error) {
 
 	// Split on the double null-byte boundary between commits (\x00\n\x00 or \x00\x00).
 	// Each entry is "<hash>\x00<message>".
+	entries := strings.Split(raw, "\x00\n")
+	commits := make([]Commit, 0, len(entries))
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, "\x00", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		commits = append(commits, Commit{
+			Hash:    strings.TrimSpace(parts[0]),
+			Message: strings.TrimRight(parts[1], "\x00\n"),
+		})
+	}
+	return commits, nil
+}
+
+// GetCommitsInRange returns commits from fromRef to toRef (exclusive of fromRef, inclusive of toRef)
+// using git log fromRef..toRef, in child-first order.
+func (r *Repo) GetCommitsInRange(fromRef, toRef string) ([]Commit, error) {
+	logCmd := r.GitExec(context.Background(), "log --format=%%H%%x00%%B%%x00 %s..%s", fromRef, toRef)
+	logOutput, err := logCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("could not list commits from %s to %s: %w", fromRef, toRef, err)
+	}
+
+	raw := string(logOutput)
+	if strings.TrimSpace(raw) == "" {
+		return []Commit{}, nil
+	}
+
 	entries := strings.Split(raw, "\x00\n")
 	commits := make([]Commit, 0, len(entries))
 	for _, entry := range entries {

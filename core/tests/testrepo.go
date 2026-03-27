@@ -94,6 +94,8 @@ func NewTestRepo(t *testing.T) *TestRepo {
 			return storyFetcherMock
 		}),
 	}
+	// Don't call os.Exit on cli.Exit errors; return them so tests can assert
+	testRepo.App.ExitErrHandler = func(context.Context, *cli.Command, error) {}
 	testRepo.PrepareSource()
 	testRepo.AlwaysFailingEditor()
 	return &testRepo
