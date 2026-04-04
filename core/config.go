@@ -8,10 +8,15 @@ import (
 )
 
 func init() {
+	viper.SetDefault("repo.git-executable", "git")
 	viper.SetDefault("github.merge.method", "rebase")
 	viper.SetDefault("github.timeout", 30*time.Second)
 	viper.SetDefault("repo.push-command", "push")
 	viper.SetDefault("story.enrich", true)
+}
+
+func GetGitExecutable() string {
+	return viper.GetString("repo.git-executable")
 }
 
 func GetGithubToken() string {
