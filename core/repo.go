@@ -249,7 +249,7 @@ func (r *Repo) GetHeadRef(ctx context.Context) (string, error) {
 }
 
 func (r *Repo) GitExec(ctx context.Context, format string, args ...any) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, "bash", "-c", "git "+fmt.Sprintf(format, args...))
+	cmd := exec.CommandContext(ctx, "bash", "-c", GetGitExecutable()+" "+fmt.Sprintf(format, args...))
 	cmd.Dir = r.Path()
 	return cmd
 }
