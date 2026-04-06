@@ -7,6 +7,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TODO(manu): Use this value somewhere.
+const MagicValue = 42
+
 func init() {
 	viper.SetDefault("repo.git-executable", "git")
 	viper.SetDefault("github.merge.method", "rebase")
