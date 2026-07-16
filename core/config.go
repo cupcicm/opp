@@ -1,6 +1,9 @@
 package core
 
 import (
+	"context"
+	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -19,8 +22,67 @@ func GetGitExecutable() string {
 	return viper.GetString("repo.git-executable")
 }
 
-func GetGithubToken() string {
-	return viper.GetString("github.token")
+// GithubTokenNeedsRefresh returns a boolean indicating whether the
+// token needs to be refreshed and a boolean indicating whether the token
+// needs to be saved to the configuration after a refresh.
+// If expires_after is not set, the token always needs to be refreshed,
+// and never needs to be saved.
+// If expires_after is set, the token needs to be refreshed and saved
+// if it was fetched more than expires_after ago.
+func GithubTokenNeedsRefresh() (bool, bool, error) {
+	if viper.GetString("github.token_fetch.command") == "" {
+		return false, false, nil
+	}
+	expiresAfterStr := viper.GetString("github.token_fetch.expires_after")
+	if expiresAfterStr == "" {
+		return true, false, nil
+	}
+	fetchedAtStr := viper.GetString("github.token_fetch.fetched_at")
+	if fetchedAtStr == "" {
+		return true, true, nil
+	}
+
+	fetchedAt, err := time.Parse(time.RFC3339, fetchedAtStr)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to parse github.token_fetch.fetched_at: %w", err)
+	}
+
+	expiresAfter, err := time.ParseDuration(expiresAfterStr)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to parse github.token_fetch.expires_after: %w", err)
+	}
+	return time.Since(fetchedAt) > expiresAfter, true, nil
+}
+
+func GetGithubToken(ctx context.Context) (string, error) {
+	token := viper.GetString("github.token")
+	needsRefresh, needsSave, err := GithubTokenNeedsRefresh()
+	if err != nil {
+		return "", err
+	}
+	if needsRefresh {
+		if needsSave {
+			fmt.Println("Refreshing Github token...")
+		}
+		fetchToken := viper.GetString("github.token_fetch.command")
+		if fetchToken == "" {
+			return "", fmt.Errorf("no github.token or github.token.fetch configured")
+		}
+		out, err := exec.CommandContext(ctx, "bash", "-c", fetchToken).Output()
+		if err != nil {
+			return "", fmt.Errorf("github.token.fetch command failed: %w", err)
+		}
+		token = strings.TrimSpace(string(out))
+		if needsSave {
+			viper.Set("github.token_fetch.fetched_at", time.Now().Format(time.RFC3339))
+			viper.Set("github.token", token)
+			if err := viper.WriteConfig(); err != nil {
+				return "", fmt.Errorf("failed to write refreshed github.token to config: %w", err)
+			}
+		}
+		return token, nil
+	}
+	return token, nil
 }
 
 func GetGithubUsername() string {
