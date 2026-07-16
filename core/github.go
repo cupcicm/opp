@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/go-github/v56/github"
 	"golang.org/x/oauth2"
@@ -37,8 +38,13 @@ func (c *GithubClient) Issues() GhIssues {
 }
 
 func NewClient(ctx context.Context) *GithubClient {
+	ctx, cancel := context.WithTimeoutCause(
+		ctx, GetGithubTimeout(),
+		fmt.Errorf("fetching github token too slow, increase github.timeout"),
+	)
+	defer cancel()
 	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: GetGithubToken()},
+		&oauth2.Token{AccessToken: Must(GetGithubToken(ctx))},
 	)
 	tc := oauth2.NewClient(ctx, ts)
 	return &GithubClient{Client: github.NewClient(tc)}
