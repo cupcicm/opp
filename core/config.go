@@ -1,6 +1,8 @@
 package core
 
 import (
+	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -19,7 +21,27 @@ func GetGitExecutable() string {
 	return viper.GetString("repo.git-executable")
 }
 
+func GetGithubTokenCmd() string {
+	return viper.GetString("github.token-cmd")
+}
+
+func HasGithubTokenConfigured() bool {
+	return viper.GetString("github.token") != "" || GetGithubTokenCmd() != ""
+}
+
 func GetGithubToken() string {
+	tokenCmd := GetGithubTokenCmd()
+	if tokenCmd != "" {
+		cmd := exec.Command("bash", "-c", tokenCmd)
+		output, err := cmd.Output()
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
+				panic(fmt.Errorf("failed to get github token from command %q: %w (stderr: %s)", tokenCmd, err, strings.TrimSpace(string(exitErr.Stderr))))
+			}
+			panic(fmt.Errorf("failed to get github token from command %q: %w", tokenCmd, err))
+		}
+		return strings.TrimSpace(string(output))
+	}
 	return viper.GetString("github.token")
 }
 

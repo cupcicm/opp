@@ -36,6 +36,7 @@ func InitCommand(repo *core.Repo) *cli.Command {
 				fmt.Printf("%v\n", err)
 			}
 
+			viper.SetConfigFile(config)
 			if err := viper.SafeWriteConfig(); err != nil {
 				return cli.Exit(fmt.Errorf("could not write config file: %w", err), 1)
 			}
@@ -49,15 +50,23 @@ type initializer struct {
 }
 
 func (i *initializer) AskGithubToken() {
-	reader := bufio.NewReader(os.Stdin)
-	if viper.GetString("github.token") == "" {
-		fmt.Println("Please enter a personal github token.")
+	i.askGithubToken(bufio.NewReader(os.Stdin))
+}
+
+func (i *initializer) askGithubToken(reader *bufio.Reader) {
+	if !core.HasGithubTokenConfigured() {
+		fmt.Println("Please enter a personal github token or a bash command that outputs one.")
 		fmt.Println("You can create one at https://github.com/settings/tokens.")
 		fmt.Println(`It needs to have all of the "repo" permissions checked,`)
 		fmt.Println(`and the "write:discussion" permission.`)
-		fmt.Print("Your github token: ")
+		fmt.Print("Your github token (or prefix with ! for a bash command, e.g. '!gh auth token'): ")
 		token := strings.TrimSpace(core.Must(reader.ReadString('\n')))
-		viper.Set("github.token", token)
+		if strings.HasPrefix(token, "!") {
+			tokenCmd := strings.TrimSpace(strings.TrimPrefix(token, "!"))
+			viper.Set("github.token-cmd", tokenCmd)
+		} else {
+			viper.Set("github.token", token)
+		}
 	}
 }
 

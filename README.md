@@ -34,6 +34,19 @@ You can create two separate PRs like this
 - Don't write the PR description yourself. opp chooses the longest commit message in your commits and uses it as the description.
 - Extract Story from commit messages and add it to the PR title and body.
 
+### GitHub Authentication
+
+You can configure your GitHub authentication using either a static Personal Access Token or a bash command:
+
+```yaml
+github:
+  # Option 1: Static personal access token
+  token: ghp_xxxxxxxxxxxxxxxxxxxx
+
+  # Option 2: Bash command to retrieve the token dynamically
+  token-cmd: gh auth token
+```
+
 # Questions / contributions
 
 - please feel free to create issues
