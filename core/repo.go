@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -98,7 +99,7 @@ func (r *Repo) Push(ctx context.Context, hash string, branch string) error {
 	)
 	defer cancel()
 	cmd := r.GitExec(ctx, "%s --force %s %s:refs/heads/%s", GetPushCommand(), GetRemoteName(), hash, branch)
-	return cmd.Run()
+	return runWithOutputInError(cmd)
 }
 
 func (r *Repo) AllLocalPrs() (map[int]string, error) {
@@ -310,7 +311,7 @@ func (r *Repo) Fetch(ctx context.Context) error {
 	defer cancel()
 	// The --prune here is important : it removes the branches that have been deleted on github.
 	cmd := r.GitExec(ctx, "fetch --prune %s", GetRemoteName())
-	return cmd.Run()
+	return runWithOutputInError(cmd)
 }
 
 // When remote is true, rebase on the distant version of the branch. When false,
@@ -513,10 +514,20 @@ func (r *Repo) DeleteRemoteBranch(ctx context.Context, branch Branch) error {
 	)
 	defer cancel()
 	cmd := r.GitExec(ctx, "%s %s :%s", GetPushCommand(), GetRemoteName(), branch.RemoteName())
-	return cmd.Run()
+	return runWithOutputInError(cmd)
 }
 
 func (r *Repo) DetachHead(ctx context.Context) error {
 	cmd := r.GitExec(ctx, "checkout --detach HEAD")
-	return cmd.Run()
+	return runWithOutputInError(cmd)
+}
+
+func runWithOutputInError(cmd *exec.Cmd) error {
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("`%s` failed: %w\n%s", cmd.Args[len(cmd.Args)-1], err, strings.TrimSpace(output.String()))
+	}
+	return nil
 }
